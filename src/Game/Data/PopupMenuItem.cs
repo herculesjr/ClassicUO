@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -20,12 +20,20 @@
 #endregion
 namespace ClassicUO.Game.Data
 {
-    internal struct PopupMenuItem
+    internal readonly struct PopupMenuItem
     {
-        public int Cliloc;
-        public ushort Index;
-        public Hue Hue;
-        public Hue ReplacedHue;
-        public ushort Flags;
+        public PopupMenuItem(int cliloc, ushort index, Hue hue, Hue replaced, ushort flags)
+        {
+            Cliloc = cliloc;
+            Index = index;
+            Hue = hue;
+            ReplacedHue = replaced;
+            Flags = flags;
+        }
+
+        public readonly int Cliloc;
+        public readonly ushort Index;
+        public readonly Hue Hue, ReplacedHue;
+        public readonly ushort Flags;
     }
 }

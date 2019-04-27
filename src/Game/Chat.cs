@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -19,11 +19,15 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
 using System;
+using System.Linq;
 
+using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
-using ClassicUO.Game.Gumps.UIGumps;
-using ClassicUO.Game.Scenes;
+using ClassicUO.Game.Managers;
+using ClassicUO.Game.UI.Controls;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Utility;
+using ClassicUO.Utility.Logging;
 
 namespace ClassicUO.Game
 {
@@ -33,7 +37,7 @@ namespace ClassicUO.Game
         Regular = 0,
         System = 1,
         Emote = 2,
-        Party = 3,
+        Limit3Spell = 3, // Sphere style shards use this to limit to 3 of these message types showing overhead.
         Label = 6,
         Focus = 7,
         Whisper = 8,
@@ -43,7 +47,7 @@ namespace ClassicUO.Game
         Alliance = 14,
         Command = 15,
         Encoded = 0xC0,
-        Damage
+        Party = 0xFF, // This is a CUO assigned type, value is unimportant
     }
 
     public enum MessageFont : ushort
@@ -69,121 +73,149 @@ namespace ClassicUO.Game
         None = 0xFF
     }
 
-    public static class Chat
-    {
-        private const ushort defaultHue = 0x0017;
-        private static readonly Mobile _system = new Mobile(Serial.Invalid)
+   
+
+    internal static class Chat
+    {      
+        public static PromptData PromptData { get; set; }
+
+        public static event EventHandler<UOMessageEventArgs> MessageReceived;
+
+        public static event EventHandler<UOMessageEventArgs> LocalizedMessageReceived;
+     
+    
+        public static void HandleMessage(Entity parent, string text, string name, Hue hue, MessageType type, MessageFont font, bool unicode = false, string lang = null)
         {
-            Graphic = Graphic.Invariant, Name = "System"
-        };
-
-
-        public static void Print(string message, ushort hue = defaultHue, MessageType type = MessageType.Regular, MessageFont font = MessageFont.Normal) => Print(_system, message, hue, type, font);
-        public static void Print(this Entity entity, string message, ushort hue = defaultHue, MessageType type = MessageType.Regular, MessageFont font = MessageFont.Normal) => OnMessage(entity, new UOMessageEventArgs(message, hue, type, font, true, "ENU"));
-
-        public static void Say(string message, ushort hue = defaultHue, MessageType type = MessageType.Regular, MessageFont font = MessageFont.Normal) => GameActions.Say(message, hue, type, font);
-
-        public static event EventHandler<UOMessageEventArgs> Message;
-
-        public static event EventHandler<UOMessageEventArgs> LocalizedMessage;
-
-        public static void OnMessage(Entity entity, UOMessageEventArgs args)
-        {
-            switch (args.Type)
-            {
-                case MessageType.Regular:
-
-                    if (entity != null && entity.Serial.IsValid)
-                    {
-                        entity.AddGameText(args.Type, args.Text, (byte) args.Font, args.Hue, args.IsUnicode);
-                        Engine.SceneManager.GetScene<GameScene>().Journal.Add(args.Text, args.Font, args.Hue, entity.Name);
-                    }
-                    else
-                    {
-                        Service.Get<ChatControl>().AddLine(args.Text, (byte) args.Font, args.Hue, args.IsUnicode);
-                        Engine.SceneManager.GetScene<GameScene>().Journal.Add(args.Text, args.Font, args.Hue, "System");
-                    }
-
-                    break;
-                case MessageType.System:
-                    Service.Get<ChatControl>().AddLine(args.Text, (byte) args.Font, args.Hue, args.IsUnicode);
-                    Engine.SceneManager.GetScene<GameScene>().Journal.Add(args.Text, args.Font, args.Hue, "System");
-
-                    break;
-                case MessageType.Emote:
-
-                    if (entity != null && entity.Serial.IsValid)
-                    {
-                        entity.AddGameText(args.Type, $"*{args.Text}*", (byte) args.Font, args.Hue, args.IsUnicode);
-                        Engine.SceneManager.GetScene<GameScene>().Journal.Add($"*{args.Text}*", args.Font, args.Hue, entity.Name);
-                    }
-                    else
-                        Engine.SceneManager.GetScene<GameScene>().Journal.Add($"*{args.Text}*", args.Font, args.Hue, "System");
-
-                    break;
-                case MessageType.Label:
-
-                    if (entity != null && entity.Serial.IsValid)
-                        entity.AddGameText(args.Type, args.Text, (byte) args.Font, args.Hue, args.IsUnicode);
-                    Engine.SceneManager.GetScene<GameScene>().Journal.Add(args.Text, args.Font, args.Hue, "You see");
-
-                    break;
-                case MessageType.Focus:
-
-                    break;
-                case MessageType.Whisper:
-
-                    break;
-                case MessageType.Yell:
-
-                    break;
+			switch (type)
+			{
                 case MessageType.Spell:
-
-                    if (entity != null && entity.Serial.IsValid)
+                {
+                    hue = Constants.NEUTRAL_LABEL_COLOR; //gray color per default
+                    if (!string.IsNullOrEmpty(text) && SpellDefinition.WordToTargettype.TryGetValue(text, out TargetType targetType))
                     {
-                        entity.AddGameText(args.Type, args.Text, (byte) args.Font, args.Hue, args.IsUnicode);
-                        Engine.SceneManager.GetScene<GameScene>().Journal.Add(args.Text, args.Font, args.Hue, entity.Name);
+                        if (targetType == TargetType.Beneficial)
+                            hue = Constants.BENEFIC_LABEL_COLOR;
+                        else if(targetType == TargetType.Harmful)
+                            hue = Constants.HARMFUL_LABEL_COLOR;
                     }
+                    goto case MessageType.Label;
+                }
+                case MessageType.Focus:
+			    case MessageType.Whisper:
+			    case MessageType.Yell:
+				case MessageType.Regular:
+			    case MessageType.Label:
 
-                    break;
-                case MessageType.Party:
-                    Service.Get<ChatControl>().AddLine(args.Text, (byte) args.Font, args.Hue, args.IsUnicode);
-                    Engine.SceneManager.GetScene<GameScene>().Journal.Add(args.Text, args.Font, args.Hue, "Party");
+                    if (parent == null)
+                        break;
 
-                    break;
-                case MessageType.Guild:
-                    Service.Get<ChatControl>().AddLine($"[Guild] [{entity.Name}]: {args.Text}", (byte)args.Font, args.Hue, args.IsUnicode);
-                    Engine.SceneManager.GetScene<GameScene>().Journal.Add(args.Text, args.Font, args.Hue, "Party");
-                    break;
-                case MessageType.Alliance:
-                    Service.Get<ChatControl>().AddLine($"[Alliance] [{entity.Name}]: {args.Text}", (byte)args.Font, args.Hue, args.IsUnicode);
-                    Engine.SceneManager.GetScene<GameScene>().Journal.Add(args.Text, args.Font, args.Hue, "Party");
-                    break;
+                    if (parent is Item it && !it.OnGround)
+                    {
+                        Gump gump = Engine.UI.GetByLocalSerial<Gump>(it.Container);
+
+                        if (gump is PaperDollGump paperDoll)
+                        {
+
+                            var inter = paperDoll
+                                             .FindControls<PaperDollInteractable>()
+                                             .FirstOrDefault();
+
+                            var f = inter?.FindControls<ItemGump>()
+                                         .SingleOrDefault(s => s.Item == it);
+
+                            if (f != null)
+                                f.AddLabel(text, hue, (byte)font, unicode);
+                            else
+                                paperDoll.FindControls<EquipmentSlot>()?
+                                         .SelectMany(s => s.Children)
+                                         .OfType<ItemGump>()
+                                         .SingleOrDefault(s => s.Item == it)?
+                                         .AddLabel(text, hue, (byte)font, unicode);
+                        }
+                        else if (gump is ContainerGump container)
+                        {
+                            container
+                                   .FindControls<ItemGump>()?
+                                   .SingleOrDefault(s => s.Item == it)?
+                                   .AddLabel(text, hue, (byte)font, unicode); 
+                        }
+                        else
+                        {
+
+                            Entity ent = World.Get(it.RootContainer);
+
+                            if (ent == null || ent.IsDestroyed)
+                                break;
+
+                            gump = Engine.UI.GetByLocalSerial<TradingGump>(ent);
+                            if (gump != null)
+                            {
+                                gump.FindControls<DataBox>()?
+                                       .SelectMany(s => s.Children)
+                                       .OfType<ItemGump>()
+                                       .SingleOrDefault(s => s.Item == it)?
+                                       .AddLabel(text, hue, (byte)font, unicode);
+                            }
+                            else
+                            {
+                                Item item = ent.Items.FirstOrDefault(s => s.Graphic == 0x1E5E);
+
+                                if (item == null)
+                                    break;
+
+                                gump = Engine.UI.Gumps.OfType<TradingGump>().FirstOrDefault(s => s.ID1 == item || s.ID2 == item);
+
+                                if (gump != null)
+                                {
+                                    gump.FindControls<DataBox>()?
+                                        .SelectMany(s => s.Children)
+                                        .OfType<ItemGump>()
+                                        .SingleOrDefault(s => s.Item == it)?
+                                        .AddLabel(text, hue, (byte)font, unicode);
+                                }
+                                else
+                                    Log.Message(LogTypes.Warning, "Missing label handler for this control: 'UNKNOWN'. Report it!!");
+                            }
+                        }
+                        
+                    }
+                    else
+                        parent.AddOverhead(type, text, (byte)font, hue, unicode);
+					break;
+				case MessageType.Emote:
+				    parent?.AddOverhead(type, $"*{text}*", (byte)font, hue, unicode);
+					break;
+
                 case MessageType.Command:
 
-                    break;
-                case MessageType.Encoded:
-
+				case MessageType.Encoded:
+                case MessageType.System:
+				case MessageType.Party:
+				case MessageType.Guild:
+                case MessageType.Alliance:
                     break;
                 default:
+                    parent?.AddOverhead(type, text, (byte)font, hue, unicode);
+                    break;
+			}
 
-                    throw new ArgumentOutOfRangeException();
-            }
+			MessageReceived.Raise(new UOMessageEventArgs(parent, text, name, hue, type, font, unicode, lang), parent);
+		}
 
-            Message.Raise(args, entity ?? _system);
-        }
-
-        public static void OnLocalizedMessage(Entity entity, UOMessageEventArgs args)
+		public static void OnLocalizedMessage(Entity entity, UOMessageEventArgs args)
         {
-            LocalizedMessage.Raise(args, entity ?? _system);
+            LocalizedMessageReceived.Raise(args, entity);
         }
-    }
 
-    public class UOMessageEventArgs : EventArgs
+	}
+
+	internal class UOMessageEventArgs : EventArgs
     {
-        public UOMessageEventArgs(string text, Hue hue, MessageType type, MessageFont font, bool unicode = false, string lang = null)
+        public UOMessageEventArgs(Entity parent, string text, string name, Hue hue, MessageType type, MessageFont font, bool unicode = false, string lang = null)
         {
+            Parent = parent;
             Text = text;
+            Name = name;
             Hue = hue;
             Type = type;
             Font = font;
@@ -192,8 +224,9 @@ namespace ClassicUO.Game
             IsUnicode = unicode;
         }
 
-        public UOMessageEventArgs(string text, Hue hue, MessageType type, MessageFont font, uint cliloc, bool unicode = false, AffixType affixType = AffixType.None, string affix = null)
+        public UOMessageEventArgs(Entity parent, string text, Hue hue, MessageType type, MessageFont font, uint cliloc, bool unicode = false, AffixType affixType = AffixType.None, string affix = null)
         {
+            Parent = parent;
             Text = text;
             Hue = hue;
             Type = type;
@@ -204,7 +237,11 @@ namespace ClassicUO.Game
             IsUnicode = unicode;
         }
 
+        public Entity Parent { get; }
+
         public string Text { get; }
+
+        public string Name { get; }
 
         public Hue Hue { get; }
 

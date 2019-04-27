@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -21,50 +21,68 @@
 using System;
 using System.Collections.Generic;
 
-using ClassicUO.Game.Gumps;
+using ClassicUO.Game.Managers;
 using ClassicUO.Input;
 using ClassicUO.Interfaces;
+using ClassicUO.IO;
+using ClassicUO.IO.Resources;
 using ClassicUO.Renderer;
 using ClassicUO.Utility.Coroutines;
+using ClassicUO.Utility.Logging;
 
 using Microsoft.Xna.Framework.Graphics;
 
 namespace ClassicUO.Game.Scenes
 {
-    public abstract class Scene : IUpdateable, IDisposable
+    internal abstract class Scene : IUpdateable
     {
+        private AudioManager _audio;
+
         protected Scene()
         {
         }
 
 
-        public bool IsDisposed { get; private set; }
+        public bool IsDestroyed { get; private set; }
+
+        public bool IsLoaded { get; private set; }
 
         public int RenderedObjectsCount { get; protected set; }
 
         public CoroutineManager Coroutines { get; } = new CoroutineManager();
 
-        public virtual void Dispose()
+        public AudioManager Audio => _audio;
+
+        public virtual void Destroy()
         {
-            if (IsDisposed)
+            if (IsDestroyed)
                 return;
-            IsDisposed = true;
+            IsDestroyed = true;
             Unload();
         }
 
       
         public virtual void Load()
         {
+            if (this is GameScene || this is LoginScene)
+            {
+                _audio = new AudioManager();
+                Coroutine.Start(this, CleaningResources(), "cleaning resources");
+            }
+
+            IsLoaded = true;
         }
 
         public virtual void Unload()
         {
+            _audio?.StopMusic();
             Coroutines.Clear();
         }
 
         public virtual void Update(double totalMS, double frameMS)
         {
-            Coroutines.Update();
+            _audio?.Update();
+            Coroutines.Update();            
         }
 
         public virtual void FixedUpdate(double totalMS, double frameMS)
@@ -74,6 +92,34 @@ namespace ClassicUO.Game.Scenes
         public virtual bool Draw(Batcher2D batcher)
         {
             return true;
+        }
+
+        private IEnumerable<IWaitCondition> CleaningResources()
+        {
+            Log.Message(LogTypes.Trace, "Cleaning routine running...");
+            while (!IsDestroyed)
+            {
+                FileManager.Art.CleaUnusedResources();
+
+                yield return new WaitTime(TimeSpan.FromMilliseconds(500));
+
+                FileManager.Gumps.CleaUnusedResources();
+
+                yield return new WaitTime(TimeSpan.FromMilliseconds(500));
+
+                FileManager.Textmaps.CleaUnusedResources();
+
+                yield return new WaitTime(TimeSpan.FromMilliseconds(500));
+
+                FileManager.Animations.CleaUnusedResources();
+
+                yield return new WaitTime(TimeSpan.FromMilliseconds(500));
+
+                World.Map?.ClearUnusedBlocks();
+
+                yield return new WaitTime(TimeSpan.FromMilliseconds(500));
+            }
+            Log.Message(LogTypes.Trace, "Cleaning routine finished");
         }
     }
 }

@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -18,6 +18,9 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
+
+using System;
+
 namespace ClassicUO.Utility.Logging
 {
     internal class Log
@@ -49,9 +52,9 @@ namespace ClassicUO.Utility.Logging
             _logger.LogTypes = LogTypes.None;
         }
 
-        public static void Message(LogTypes logType, string text)
+        public static void Message(LogTypes logType, string text, ConsoleColor highlightColor = ConsoleColor.Black)
         {
-            _logger.Message(logType, text);
+            _logger.Message(logType, text, highlightColor);
         }
 
         public static void NewLine()
@@ -62,6 +65,16 @@ namespace ClassicUO.Utility.Logging
         public static void Clear()
         {
             _logger.Clear();
+        }
+
+        public static void PushIndent()
+        {
+            _logger.PushIndent();
+        }
+
+        public static void PopIndent()
+        {
+            _logger.PopIndent();
         }
     }
 }

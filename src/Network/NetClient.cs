@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -27,12 +27,12 @@ using System.Net.Sockets;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 
+
 namespace ClassicUO.Network
 {
-    public sealed class NetClient
+    internal sealed class NetClient
     {
-        private const int BUFF_SIZE = 0x20000;
-        //private static readonly BufferPool _pool = new BufferPool(10, BUFF_SIZE);
+        private const int BUFF_SIZE = 0x80000;
         private readonly object _sendLock = new object();
         private readonly object _sync = new object();
         private CircularBuffer _circularBuffer;
@@ -79,16 +79,49 @@ namespace ClassicUO.Network
             }
         }
 
-        public event EventHandler Connected, Disconnected;
+        public event EventHandler Connected;
+        public event EventHandler<SocketError> Disconnected;
 
         public static event EventHandler<Packet> PacketReceived, PacketSended;
 
-        public void Connect(string ip, ushort port)
+        public static void EnqueuePacketFromPlugin(Packet p)
+        {
+
+            if (LoginSocket.IsDisposed && Socket.IsConnected)
+            {
+                lock (Socket._sync)
+                {
+                    Socket._workingQueue.Enqueue(p);
+                    Socket.Statistics.TotalPacketsReceived++;
+                }
+            }
+            else if (Socket.IsDisposed && LoginSocket.IsConnected)
+            {
+                lock (LoginSocket._sync)
+                {
+                    LoginSocket._workingQueue.Enqueue(p);
+                    LoginSocket.Statistics.TotalPacketsReceived++;
+                }
+            }
+            else
+            {
+                Log.Message(LogTypes.Error, "Attempt to write into a dead socket");
+            }
+            
+        }
+
+        public bool Connect(string ip, ushort port)
         {
             IsDisposed = _sending = false;
             IPAddress address = ResolveIP(ip);
+
+            if (address == null)
+                return false;
+
             IPEndPoint endpoint = new IPEndPoint(address, port);
             Connect(endpoint);
+
+            return true;
         }
 
         public void Connect(IPAddress address, ushort port)
@@ -128,7 +161,7 @@ namespace ClassicUO.Network
                 else
                 {
                     Log.Message(LogTypes.Error, e.SocketError.ToString());
-                    Disconnect();
+                    Disconnect(e.SocketError);
                 }
             };
             connectEventArgs.RemoteEndPoint = endpoint;
@@ -136,6 +169,11 @@ namespace ClassicUO.Network
         }
 
         public void Disconnect()
+        {
+           Disconnect(SocketError.SocketError);
+        }
+
+        private void Disconnect(SocketError error)
         {
             if (IsDisposed)
                 return;
@@ -155,17 +193,6 @@ namespace ClassicUO.Network
 
             _socket.Close();
 
-            //if (_recvBuffer != null)
-            //{
-            //    lock (_pool)
-            //        _pool.AddFreeSegment(_recvBuffer);
-            //}
-
-            //if (_incompletePacketBuffer != null)
-            //{
-            //    lock (_pool)
-            //        _pool.AddFreeSegment(_incompletePacketBuffer);
-            //}
             _incompletePacketBuffer = null;
             _incompletePacketLength = 0;
             _recvBuffer = null;
@@ -181,7 +208,7 @@ namespace ClassicUO.Network
             }
 
             _circularBuffer = null;
-            Disconnected.Raise();
+            Disconnected.Raise(error);
             Statistics.Reset();
         }
 
@@ -194,8 +221,12 @@ namespace ClassicUO.Network
         {
             byte[] data = p.ToArray();
             Packet packet = new Packet(data, p.Length);
-            PacketSended.Raise(packet);
-            if (!packet.Filter) Send(data);
+
+            if (Plugin.ProcessSendPacket(data, packet.Length))
+            {
+                PacketSended.Raise(packet);
+                Send(data);
+            }
         }
 
         public void Update()
@@ -207,7 +238,14 @@ namespace ClassicUO.Network
                 _queue = temp;
             }
 
-            while (_queue.Count > 0) PacketReceived.Raise(_queue.Dequeue());
+            while (_queue.Count != 0)
+            {
+                Packet p = _queue.Dequeue();
+
+                if (Plugin.ProcessRecvPacket(p))
+                    PacketReceived.Raise(p);
+            }
+
             Flush();
         }
 
@@ -249,7 +287,7 @@ namespace ClassicUO.Network
             }
         }
 
-        private void Send(byte[] data)
+        public void Send(byte[] data)
         {
             if (_socket == null) return;
 

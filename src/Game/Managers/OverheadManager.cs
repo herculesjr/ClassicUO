@@ -1,5 +1,5 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -19,95 +19,222 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
 
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using ClassicUO.Game.GameObjects;
-using ClassicUO.Game.Views;
+using ClassicUO.Game.Scenes;
 using ClassicUO.Input;
+using ClassicUO.IO;
+using ClassicUO.IO.Resources;
 using ClassicUO.Renderer;
 using ClassicUO.Utility;
+using ClassicUO.Utility.Logging;
 
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+
+using IUpdateable = ClassicUO.Interfaces.IUpdateable;
 
 namespace ClassicUO.Game.Managers
 {
-    public class OverheadManager
+    internal class OverheadManager : IUpdateable
     {
-        private readonly List<OverHeadInfo> _overheadsList = new List<OverHeadInfo>();
-        private readonly List<OverHeadInfo> _damagesList = new List<OverHeadInfo>();
+        private readonly List<Serial> _toRemoveDamages = new List<Serial>();
+        private readonly List< Tuple<Serial, Serial>> _subst = new List<Tuple<Serial, Serial>>();
+        private readonly List<GameObject> _staticToUpdate = new List<GameObject>();
 
-      
-        public void AddOrUpdateText(View view, Vector3 position)
-        {
-            _overheadsList.Add(new OverHeadInfo(view, position));
-        }
+        private OverheadMessage _firstNode;
 
-        public void AddOrUpdateDamage(View view, Vector3 position)
-        {
-            _damagesList.Add(new OverHeadInfo(view, position));
-        }
+        private readonly Dictionary<Serial, OverheadDamage> _damages = new Dictionary<Serial, OverheadDamage>();
 
-        public void Draw(Batcher2D batcher, MouseOverList objectList)
-        {
-            DrawOverheads(batcher, objectList);
-            DrawDamages(batcher, objectList);
-        }
 
-        private void DrawOverheads(Batcher2D batcher, MouseOverList objectList)
+
+        private void DrawTextOverheads(Batcher2D batcher, MouseOverList list, int startX, int startY, float scale)
         {
-            if (_overheadsList.Count > 0)
+            if (_firstNode != null)
             {
-                for (int i = 0; i < _overheadsList.Count; i++)
+
+                var first = _firstNode;
+
+                int mouseX = Mouse.Position.X;
+                int mouseY = Mouse.Position.Y;
+
+                while (first != null)
                 {
-                    OverHeadInfo t = _overheadsList[i];
-                    View view = t.View;
+                    float alpha = first.IsOverlap(first.Right);
+                    first.Draw(batcher, startX, startY, scale);
+                    first.SetAlpha(alpha);
+                    first.Contains(mouseX, mouseY, list);
 
-                    Rectangle rect0 = new Rectangle((int)t.Position.X - view.Bounds.X, (int)t.Position.Y - view.Bounds.Y, view.Bounds.Width, view.Bounds.Height);
+                    var temp = first.Right;
+                    first.Right = null;
+                    first = temp;
+                }
 
-                    for (int j = i + 1; j < _overheadsList.Count; j++)
+                _firstNode = null;
+            }
+        }
+
+        public void AddOverhead(OverheadMessage overhead)
+        {
+            if ((overhead.Parent is Static || overhead.Parent is Multi) && !_staticToUpdate.Contains(overhead.Parent))
+                _staticToUpdate.Add(overhead.Parent);
+
+            if (_firstNode == null)
+            {
+                _firstNode = overhead;
+            }
+            else
+            {
+                var last = _firstNode;
+
+                while (last.Right != null)
+                    last = last.Right;
+
+                last.Right = overhead;
+                overhead.Right = null;
+            }
+        }
+        
+
+        public void Update(double totalMS, double frameMS)
+        {
+            for (int i = 0; i < _staticToUpdate.Count; i++)
+            {
+                var st = _staticToUpdate[i];
+                st.Update(totalMS, frameMS);
+
+                if (st.IsDestroyed)
+                    _staticToUpdate.RemoveAt(i--);
+            }
+
+            UpdateDamageOverhead(totalMS, frameMS);
+
+            if(_toRemoveDamages.Count > 0)
+            {
+                _toRemoveDamages.ForEach(s =>
+                {
+                    _damages.Remove(s);
+                });
+                _toRemoveDamages.Clear();
+            }
+        }
+
+
+        public bool Draw(Batcher2D batcher, MouseOverList list, int startX, int startY)
+        {
+            float scale = Engine.SceneManager.GetScene<GameScene>().Scale;
+
+            DrawTextOverheads(batcher, list, startX, startY, scale);
+
+            foreach (KeyValuePair<Serial, OverheadDamage> overheadDamage in _damages)
+            {
+                int x = startX;
+                int y = startY;
+
+                Entity mob = World.Get(overheadDamage.Key);
+
+                if (mob == null || mob.IsDestroyed)
+                {
+                    uint ser = overheadDamage.Key | 0x8000_0000;
+
+                    if (World.CorpseManager.Exists(0, ser))
                     {
-                        OverHeadInfo a = _overheadsList[j];
-                        View b = a.View;
+                        Item item = World.CorpseManager.GetCorpseObject(ser);
 
-                        Rectangle rect1 = new Rectangle((int)a.Position.X - b.Bounds.X, (int)a.Position.Y - b.Bounds.Y, b.Bounds.Width, b.Bounds.Height);
-
-                        if ((((TextOverhead)view.GameObject).IsOverlapped = rect0.InRect(rect1)))
-                            break;
+                        if (item != null && item != overheadDamage.Value.Parent)
+                        {
+                            _subst.Add(Tuple.Create(overheadDamage.Key, item.Serial));
+                            overheadDamage.Value.SetParent(item);
+                        }
                     }
-
-                    view.Draw(batcher, t.Position, objectList);
+                    else
+                    {
+                        continue;
+                    }
                 }
 
-                _overheadsList.Clear();
+                overheadDamage.Value.Draw(batcher, x, y, scale);
             }
+
+
+            return true;
         }
 
-        private void DrawDamages(Batcher2D batcher, MouseOverList objectList)
+        private void UpdateDamageOverhead(double totalMS, double frameMS)
         {
-            if (_damagesList.Count > 0)
+
+            if (_subst.Count != 0)
             {
-                for (int i = 0; i < _damagesList.Count; i++)
+                foreach (Tuple<Serial, Serial> tuple in _subst)
                 {
-                    var t = _damagesList[i];
-                    t.View.Draw(batcher, t.Position, objectList);
+                    if (_damages.TryGetValue(tuple.Item1, out var dmg))
+                    {
+                        _damages.Remove(tuple.Item1);
+                        _damages.Add(tuple.Item2, dmg);
+                    }
                 }
 
-                _damagesList.Clear();
+                _subst.Clear();
             }
-        }
 
-
-        private struct OverHeadInfo
-        {
-            public OverHeadInfo(View view, Vector3 pos)
+            foreach (KeyValuePair<Serial, OverheadDamage> overheadDamage in _damages)
             {
-                View = view;
-                Position = pos;
-            }
+                overheadDamage.Value.Update();
 
-            public readonly View View;
-            public readonly Vector3 Position;
+                if (overheadDamage.Value.IsEmpty)
+                {
+                    _toRemoveDamages.Add(overheadDamage.Key);
+                }
+            }
         }
 
+
+        internal void AddDamage(Serial obj, int dmg)
+        {
+            if (!_damages.TryGetValue(obj, out var dm) || dm == null)
+            {
+                dm = new OverheadDamage(World.Get(obj));
+                _damages[obj] = dm;
+            }
+
+            dm.Add(dmg);
+
+        }
+
+        public void Clear()
+        {
+            if (_toRemoveDamages.Count > 0)
+            {
+                _toRemoveDamages.ForEach(s =>
+                {
+                    _damages.Remove(s);
+                });
+                _toRemoveDamages.Clear();
+            }
+
+            _subst.Clear();
+
+            var last = _firstNode;
+
+            while (last != null)
+            {
+                var temp = last.Right;
+
+                last.Destroy();
+
+                last.Left = null;
+                last.Right = null;
+
+                last = temp;
+            }
+
+            _firstNode = null;
+
+            _staticToUpdate.ForEach( s=> s.Destroy());
+            _staticToUpdate.Clear();
+        }
     }
 }

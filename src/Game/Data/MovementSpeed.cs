@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -24,7 +24,7 @@ using ClassicUO.Game.GameObjects;
 
 namespace ClassicUO.Game.Data
 {
-    public static class MovementSpeed
+    internal static class MovementSpeed
     {
         private const int STEP_DELAY_MOUNT_RUN = 100;
         private const int STEP_DELAY_MOUNT_WALK = 200;

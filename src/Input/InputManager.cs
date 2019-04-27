@@ -1,5 +1,5 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -20,46 +20,69 @@
 #endregion
 using System;
 
+using ClassicUO.Network;
 using ClassicUO.Utility;
+
+using SDL2;
 
 using static SDL2.SDL;
 
 namespace ClassicUO.Input
 {
-    public static class InputManager
+    internal sealed class InputManager : IDisposable
     {
-        private static bool _dragStarted;
-        private static SDL_EventFilter _hookDel;
+        private bool _dragStarted;
+        private readonly SDL_EventFilter _hookDel;
 
-        public static void Initialize()
+        public InputManager()
         {
             _hookDel = HookFunc;
             SDL_AddEventWatch(_hookDel, IntPtr.Zero);
         }
 
-        public static void Unload()
+        public bool IsDisposed { get; private set; }
+
+
+        public void Dispose()
         {
+            if (IsDisposed)
+                return;
+
+            IsDisposed = true;
+           
             SDL_DelEventWatch(_hookDel, IntPtr.Zero);
         }
 
-        public static event EventHandler<MouseDoubleClickEventArgs> LeftMouseDoubleClick, MidMouseDoubleClick, RightMouseDoubleClick;
 
-        public static event EventHandler LeftMouseButtonDown, LeftMouseButtonUp, MidMouseButtonDown, MidMouseButtonUp, RightMouseButtonDown, RightMouseButtonUp, X1MouseButtonDown, X1MouseButtonUp, X2MouseButtonDown, X2MouseButtonUp;
+        public event EventHandler<MouseDoubleClickEventArgs> LeftMouseDoubleClick, MidMouseDoubleClick, RightMouseDoubleClick;
 
-        public static event EventHandler<bool> MouseWheel;
+        public event EventHandler LeftMouseButtonDown, LeftMouseButtonUp, MidMouseButtonDown, MidMouseButtonUp, RightMouseButtonDown, RightMouseButtonUp, X1MouseButtonDown, X1MouseButtonUp, X2MouseButtonDown, X2MouseButtonUp;
 
-        public static event EventHandler MouseMoving, MouseDragging, DragBegin, DragEnd;
+        public event EventHandler<bool> MouseWheel;
 
-        public static event EventHandler<SDL_KeyboardEvent> KeyDown, KeyUp;
+        public event EventHandler MouseMoving, MouseDragging, DragBegin, DragEnd;
 
-        public static event EventHandler<string> TextInput;
+        public event EventHandler<SDL_KeyboardEvent> KeyDown, KeyUp;
 
-        private static unsafe int HookFunc(IntPtr userdata, IntPtr ev)
+        public event EventHandler<string> TextInput;
+
+        private bool _ignoreNextTextInput;
+
+        private unsafe int HookFunc(IntPtr userdata, IntPtr ev)
         {
             SDL_Event* e = (SDL_Event*) ev;
 
             switch (e->type)
             {
+                case SDL_EventType.SDL_AUDIODEVICEADDED:
+                    Console.WriteLine("AUDIO ADDED: {0}", e->adevice.which);
+                    break;
+                case SDL_EventType.SDL_AUDIODEVICEREMOVED:
+                    Console.WriteLine("AUDIO REMOVED: {0}", e->adevice.which);
+
+                    break;
+
+
                 case SDL_EventType.SDL_WINDOWEVENT:
 
                     switch (e->window.windowEvent)
@@ -73,11 +96,12 @@ namespace ClassicUO.Input
 
                             break;
                         case SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_GAINED:
-
+                            Plugin.OnFocusGained();
                             // SDL_CaptureMouse(SDL_bool.SDL_TRUE);
                             //Log.Message(LogTypes.Debug, "FOCUS");
                             break;
                         case SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_LOST:
+                            Plugin.OnFocusLost();
                             //Log.Message(LogTypes.Debug, "NO FOCUS");
                             //SDL_CaptureMouse(SDL_bool.SDL_FALSE);
 
@@ -89,6 +113,8 @@ namespace ClassicUO.Input
                         case SDL_WindowEventID.SDL_WINDOWEVENT_HIT_TEST:
 
                             break;
+
+                        
                     }
 
                     break;
@@ -96,14 +122,26 @@ namespace ClassicUO.Input
 
                     break;
                 case SDL_EventType.SDL_KEYDOWN:
-                    KeyDown?.Raise(e->key);
+
+                    if (Plugin.ProcessHotkeys((int) e->key.keysym.sym, (int) e->key.keysym.mod, true))
+                    {
+                        _ignoreNextTextInput = false;
+                        KeyDown?.Raise(e->key);
+                    }
+                    else
+                        _ignoreNextTextInput = true;
 
                     break;
                 case SDL_EventType.SDL_KEYUP:
-                    KeyUp.Raise(e->key);
+                    //if (Plugin.ProcessHotkeys((int)e->key.keysym.sym, (int)e->key.keysym.mod, false))
+                        KeyUp.Raise(e->key);
 
                     break;
                 case SDL_EventType.SDL_TEXTINPUT:
+
+                    if (_ignoreNextTextInput)
+                        break;
+
                     string s = StringHelper.ReadUTF8(e->text.text);
 
                     if (!string.IsNullOrEmpty(s))
@@ -125,6 +163,8 @@ namespace ClassicUO.Input
                 case SDL_EventType.SDL_MOUSEWHEEL:
                     Mouse.Update();
                     bool isup = e->wheel.y > 0;
+
+                    Plugin.ProcessMouse(0, e->wheel.y);
                     MouseWheel.Raise(isup);
 
                     break;
@@ -144,11 +184,10 @@ namespace ClassicUO.Input
                     switch ((uint) mouse.button)
                     {
                         case SDL_BUTTON_LEFT:
-                            Mouse.LButtonPressed = isDown;
-
                             if (isDown)
                             {
                                 Mouse.Begin();
+                                Mouse.LButtonPressed = true;
                                 Mouse.LDropPosition = Mouse.Position;
                                 Mouse.CancelDoubleClick = false;
                                 uint ticks = SDL_GetTicks();
@@ -176,16 +215,16 @@ namespace ClassicUO.Input
                             {
                                 if (Mouse.LastLeftButtonClickTime != 0xFFFF_FFFF)
                                     LeftMouseButtonUp.Raise();
+                                Mouse.LButtonPressed = false;
                                 Mouse.End();
                             }
 
                             break;
                         case SDL_BUTTON_MIDDLE:
-                            Mouse.MButtonPressed = isDown;
-
                             if (isDown)
                             {
                                 Mouse.Begin();
+                                Mouse.MButtonPressed = true;
                                 Mouse.MDropPosition = Mouse.Position;
                                 Mouse.CancelDoubleClick = false;
                                 uint ticks = SDL_GetTicks();
@@ -203,22 +242,24 @@ namespace ClassicUO.Input
                                     break;
                                 }
 
+                                Plugin.ProcessMouse(e->button.button, 0);
+
                                 MidMouseButtonDown.Raise();
                                 Mouse.LastMidButtonClickTime = Mouse.CancelDoubleClick ? 0 : ticks;
                             }
                             else
                             {
                                 MidMouseButtonUp.Raise();
+                                Mouse.MButtonPressed = false;
                                 Mouse.End();
                             }
 
                             break;
                         case SDL_BUTTON_RIGHT:
-                            Mouse.RButtonPressed = isDown;
-
                             if (isDown)
                             {
                                 Mouse.Begin();
+                                Mouse.RButtonPressed = true;
                                 Mouse.RDropPosition = Mouse.Position;
                                 Mouse.CancelDoubleClick = false;
                                 uint ticks = SDL_GetTicks();
@@ -246,15 +287,18 @@ namespace ClassicUO.Input
                             {
                                 if (Mouse.LastRightButtonClickTime != 0xFFFF_FFFF)
                                     RightMouseButtonUp.Raise();
+                                Mouse.RButtonPressed = false;
                                 Mouse.End();
                             }
 
                             break;
                         case SDL_BUTTON_X1:
-
+                            if (isDown)
+                                Plugin.ProcessMouse(e->button.button, 0);
                             break;
                         case SDL_BUTTON_X2:
-
+                            if (isDown)
+                                Plugin.ProcessMouse(e->button.button, 0);
                             break;
                     }
 

@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -18,11 +18,16 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
+
+using System;
+using System.Globalization;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace ClassicUO.Utility
 {
-    public static class StringHelper
+    internal static class StringHelper
     {
         public static string CapitalizeFirstCharacter(string str)
         {
@@ -47,10 +52,7 @@ namespace ClassicUO.Utility
 
             for (int i = 0; i < str.Length; i++)
             {
-                if (capitalizeNext)
-                    sb.Append(char.ToUpper(str[i]));
-                else
-                    sb.Append(str[i]);
+                sb.Append(capitalizeNext ? char.ToUpper(str[i]) : str[i]);
                 capitalizeNext = " .,;!".Contains(str[i].ToString());
             }
 
@@ -67,5 +69,51 @@ namespace ClassicUO.Utility
             return Encoding.UTF8.GetString(data, (int)(ptr - data));
         }
 
-    }
+        public static bool IsSafeChar(int c)
+        {
+            return (c >= 0x20 && c < 0xFFFE);
+        }
+
+        public static void AddSpaceBeforeCapital(string[] str, bool checkAcronyms = true)
+        {
+            for(int i = 0; i < str.Length; i++)
+            {
+                str[i] = AddSpaceBeforeCapital(str[i], checkAcronyms);
+            }
+        }
+
+        public static string AddSpaceBeforeCapital(string str, bool checkAcronyms = true)
+        {
+            if (string.IsNullOrWhiteSpace(str))
+                return "";
+            StringBuilder sb = new StringBuilder(str.Length * 2);
+            sb.Append(str[0]);
+            for (int i = 1, len = str.Length - 1; i <= len; i++)
+            {
+                if (char.IsUpper(str[i]))
+                {
+                    if ((str[i - 1] != ' ' && !char.IsUpper(str[i - 1])) ||
+                        (checkAcronyms && char.IsUpper(str[i - 1]) && i < len && !char.IsUpper(str[i + 1])))
+                    {
+                        sb.Append(' ');
+                    }
+                }
+                sb.Append(str[i]);
+            }
+            return sb.ToString();
+        }
+
+        public static string RemoveUpperLowerChars(string str, bool removelower = true)
+        {
+            if (string.IsNullOrWhiteSpace(str))
+                return "";
+            StringBuilder sb = new StringBuilder(str.Length);
+            for(int i = 0; i<str.Length; i++)
+            {
+                if(char.IsUpper(str[i]) == removelower || str[i] == ' ')
+                    sb.Append(str[i]);
+            }
+            return sb.ToString();
+        }
+    } 
 }

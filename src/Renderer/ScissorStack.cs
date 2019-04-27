@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -70,17 +70,17 @@ namespace ClassicUO.Renderer
             return scissors;
         }
 
-        public static Rectangle CalculateScissors(Matrix batchTransform, Rectangle scissors)
+        public static Rectangle CalculateScissors(Matrix batchTransform, int sx, int sy, int sw, int sh)
         {
-            Vector2 tmp = new Vector2(scissors.X, scissors.Y);
+            Vector2 tmp = new Vector2(sx, sy);
             tmp = Vector2.Transform(tmp, batchTransform);
 
             Rectangle newScissor = new Rectangle
             {
                 X = (int) tmp.X, Y = (int) tmp.Y
             };
-            tmp.X = scissors.X + scissors.Width;
-            tmp.Y = scissors.Y + scissors.Height;
+            tmp.X = sx + sw;
+            tmp.Y = sy + sh;
             tmp = Vector2.Transform(tmp, batchTransform);
             newScissor.Width = (int) tmp.X - newScissor.X;
             newScissor.Height = (int) tmp.Y - newScissor.Y;

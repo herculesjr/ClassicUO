@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -44,6 +44,12 @@ namespace ClassicUO.Game.Data
         FertileDirt,
         DragonsBlood,
         DemonBone,
+
+        // More extras usable as reagents
+        Blackmoor,
+        Bloodspawn,
+        DeadWood,
+        WyrmHeart,
 
         // None
         None

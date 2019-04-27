@@ -1,5 +1,5 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -24,7 +24,7 @@ using Microsoft.Xna.Framework;
 
 namespace ClassicUO.Input
 {
-    public class MousePicker
+    internal class MousePicker
     {
         private MouseOverItem _overObject;
         private MouseOverItem _overTile;
@@ -38,9 +38,9 @@ namespace ClassicUO.Input
 
         public Point Position { get; set; }
 
-        public GameObject MouseOverObject => _overObject?.Object;
+        public IGameEntity MouseOverObject => _overObject?.Object;
 
-        public GameObject MouseOverTile => _overTile?.Object;
+        public IGameEntity MouseOverTile => _overTile?.Object;
 
         public Point MouseOverObjectPoint => _overObject?.InTexturePoint ?? Point.Zero;
 

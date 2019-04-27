@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -19,13 +19,15 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
 using System;
+using System.Runtime.CompilerServices;
 
 using Microsoft.Xna.Framework;
 
 namespace ClassicUO.Utility
 {
-    public static class MathHelper
+    internal static class MathHelper
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool InRange(int input, int low, int high)
         {
             return input >= low && input <= high;
@@ -41,5 +43,22 @@ namespace ClassicUO.Utility
 
             return distx;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ulong Combine(int val1, int val2)
+        {
+            return (ulong)(long)val1 | ((ulong)(long)(val2) << 32);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void GetNumbersFromCombine(ulong b, out int val1, out int val2)
+        {
+            val1 = (int)(0xFFFFFFFF & b);
+            val2 = (int) (b >> 32);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int PercetangeOf(int current, int max)
+            => current / max * 100;
     }
 }

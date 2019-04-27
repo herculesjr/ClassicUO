@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -22,33 +22,9 @@
 using System;
 using System.Collections.Generic;
 
-using ClassicUO.Game.Scenes;
-using ClassicUO.Utility.Coroutines;
-
 namespace ClassicUO.Game.GameObjects
 {
-    public static class HouseManager
-    {
-        private static readonly Dictionary<Serial, House> _houses = new Dictionary<Serial, House>();
-
-        public static void Add(Serial serial, House revision)
-        {
-            _houses[serial] = revision;
-        }
-
-        public static bool TryGetHouse(Serial serial, out House house)
-        {
-            return _houses.TryGetValue(serial, out house);
-        }
-
-        public static void Remove(Serial serial) => _houses.Remove(serial);
-
-        public static bool Exists(Serial serial) => _houses.ContainsKey(serial);
-
-        public static void Clear() => _houses.Clear();
-    }
-
-    public sealed class House : IEquatable<Serial>, IDisposable
+    internal sealed class House : IEquatable<Serial>
     {
         public House(Serial serial, uint revision, bool isCustom)
         {
@@ -58,30 +34,32 @@ namespace ClassicUO.Game.GameObjects
         }
 
         public Serial Serial { get; }
-        public uint Revision { get; private set; }
-        public List<Static> Components { get; } = new List<Static>();
-        public bool IsCustom { get; }
+        public uint Revision { get; set; }
+        public List<Multi> Components { get; } = new List<Multi>();
+        public bool IsCustom { get; set; }
 
-        public void SetRevision(uint revision)
+        public void Generate(bool recalculate = false)
         {
-            Revision = revision;
+            Item item = World.Items.Get(Serial);
+
+            Components.ForEach(s =>
+            {
+                if (recalculate && item != null)
+                    s.Position = item.Position + s.MultiOffset;
+                s.AddToTile();
+            });
         }
 
-        public void Generate()
-        {
-            Components.ForEach(s => s.AddToTile());
-        }
 
         public bool Equals(Serial other) => Serial == other;
 
         public void ClearComponents()
         {
-            Components.ForEach(s => s.Dispose());
-        }
+            Item item = World.Items.Get(Serial);
+            if (item != null && !item.IsDestroyed)
+                item.WantUpdateMulti = true;
 
-        public void Dispose()
-        {
-            Components.ForEach(s => s.Dispose());
+            Components.ForEach(s => s.Destroy());
             Components.Clear();
         }
     }

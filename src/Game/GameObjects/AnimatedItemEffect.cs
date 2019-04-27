@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -18,11 +18,10 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
-using ClassicUO.Game.Views;
 
 namespace ClassicUO.Game.GameObjects
 {
-    public class AnimatedItemEffect : GameEffect
+    internal sealed partial class AnimatedItemEffect : GameEffect
     {
         public AnimatedItemEffect(Graphic graphic, Hue hue, int duration)
         {
@@ -68,7 +67,10 @@ namespace ClassicUO.Game.GameObjects
                     Item item = (Item) source;
 
                     if (sourceX != 0 || sourceY != 0 || sourceZ != 0)
-                        item.Position = new Position((ushort) sourceX, (ushort) sourceY, zSrc);
+                    {
+                        item.Position = new Position((ushort)sourceX, (ushort)sourceY, zSrc);
+                    }
+
                     SetSource(item);
                 }
                 else
@@ -78,25 +80,24 @@ namespace ClassicUO.Game.GameObjects
                 SetSource(sourceX, sourceY, sourceZ);
         }
 
-        protected override View CreateView()
-        {
-            return new AnimatedEffectView(this);
-        }
-
         public override void Update(double totalMS, double frameMS)
         {
             base.Update(totalMS, frameMS);
 
-            if (!IsDisposed)
+            if (!IsDestroyed)
             {
                 (int x, int y, int z) = GetSource();
 
                 if (Source != null)
+                {
                     Offset = Source.Offset;
+                    Source.RealScreenPosition = RealScreenPosition;
+                }
 
                 if (Position.X != x || Position.Y != y || Position.Z != z)
                 {
-                    Position = new Position((ushort) x, (ushort) y, (sbyte) z);
+                    Position = new Position((ushort) x, (ushort) y, (sbyte) z);                    
+                    AddToTile();                  
                 }
             }
         }

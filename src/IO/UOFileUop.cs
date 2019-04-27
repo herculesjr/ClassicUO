@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -23,7 +23,7 @@ using System.Collections.Generic;
 
 namespace ClassicUO.IO
 {
-    public class UOFileUop : UOFile
+    internal class UOFileUop : UOFile
     {
         private const uint UOP_MAGIC_NUMBER = 0x50594D;
         private readonly string _extension;
@@ -55,7 +55,7 @@ namespace ClassicUO.IO
                 _count = count;
             Entries = new UOFileIndex3D[_count];
             Dictionary<ulong, int> hashes = new Dictionary<ulong, int>();
-            string pattern = System.IO.Path.GetFileNameWithoutExtension(Path).ToLowerInvariant();
+            string pattern = System.IO.Path.GetFileNameWithoutExtension(FilePath).ToLowerInvariant();
 
             for (int i = 0; i < _count; i++)
             {
@@ -102,14 +102,15 @@ namespace ClassicUO.IO
                             Seek(offset + headerLength);
                             int extra1 = ReadInt();
                             int extra2 = ReadInt();
-                            Entries[idx].Offset += 8;
-                            Entries[idx].Extra = (extra1 << 16) | extra2;
-                            Entries[idx].Length -= 8;
+
+                            ref UOFileIndex3D index3D = ref Entries[idx];
+                            index3D = new UOFileIndex3D(index3D.Offset + 8, (int) (index3D.Length - 8), decompressedLength, (extra1 << 16) | extra2);
+                         
                             Seek(curpos);
                         }
                     }
-                    else
-                        throw new ArgumentException(string.Format("File with hash {0:X8} was not found in hashes dictionary! EA Mythic changed UOP format!", hash));
+                    //else
+                    //    throw new ArgumentException(string.Format("File with hash {0:X8} was not found in hashes dictionary! EA Mythic changed UOP format!", hash));
                 }
 
                 Seek(nextBlock);

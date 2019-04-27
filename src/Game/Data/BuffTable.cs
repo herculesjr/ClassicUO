@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -20,7 +20,7 @@
 #endregion
 namespace ClassicUO.Game.Data
 {
-    public static class BuffTable
+    internal static class BuffTable
     {
         public static Graphic[] Table { get; } =
         {

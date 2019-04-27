@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -19,10 +19,18 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
 using System;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Security;
 
 namespace ClassicUO.IO
 {
-    public unsafe class DataReader
+    /// <summary>
+    /// A fast Little Endian data reader.
+    /// </summary>
+    internal unsafe class DataReader
     {
         private byte* _data;
 
@@ -34,8 +42,19 @@ namespace ClassicUO.IO
 
         internal IntPtr PositionAddress => (IntPtr) (_data + Position);
 
+        private GCHandle _handle;
+
+
+        public void ReleaseData()
+        {
+            if (_handle.IsAllocated)
+                _handle.Free();
+        }
+
         internal void SetData(byte* data, long length)
         {
+            ReleaseData();
+
             _data = data;
             Length = length;
             Position = 0;
@@ -43,7 +62,13 @@ namespace ClassicUO.IO
 
         internal void SetData(byte[] data, long length)
         {
-            fixed (byte* ptr = data) SetData(ptr, length);
+            //fixed (byte* d = data)
+            //    SetData(d, length);
+            ReleaseData();
+            _handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+            _data = (byte*)_handle.AddrOfPinnedObject();
+            Length = length;
+            Position = 0;
         }
 
         internal void SetData(IntPtr data, long length)
@@ -74,6 +99,7 @@ namespace ClassicUO.IO
             Position += count;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal byte ReadByte()
         {
             EnsureSize(1);
@@ -93,44 +119,83 @@ namespace ClassicUO.IO
 
         internal short ReadShort()
         {
-            return (short) (ReadByte() | (ReadByte() << 8));
+            EnsureSize(2);
+
+            short v = *(short*)(_data + Position);
+            Position += 2;
+
+            return v;
         }
 
         internal ushort ReadUShort()
         {
-            return (ushort) ReadShort();
+            EnsureSize(2);
+
+            ushort v = *(ushort*)(_data + Position);
+            Position += 2;
+
+            return v;
         }
 
         internal int ReadInt()
         {
-            return ReadByte() | (ReadByte() << 8) | (ReadByte() << 16) | (ReadByte() << 24);
+            EnsureSize(4);
+
+            int v = *(int*) (_data + Position);
+
+            Position += 4;
+
+            return v;
         }
 
         internal uint ReadUInt()
         {
-            return (uint) ReadInt();
+            EnsureSize(4);
+
+            uint v = *(uint*)(_data + Position);
+
+            Position += 4;
+
+            return v;
         }
 
         internal long ReadLong()
         {
-            return ReadByte() | ((long) ReadByte() << 8) | ((long) ReadByte() << 16) | ((long) ReadByte() << 24) | ((long) ReadByte() << 32) | ((long) ReadByte() << 40) | ((long) ReadByte() << 48) | ((long) ReadByte() << 56);
+            EnsureSize(8);
+
+            long v = *(long*) (_data + Position);
+
+            Position += 8;
+
+            return v;
         }
 
         internal ulong ReadULong()
         {
-            return (ulong) ReadLong();
+            EnsureSize(8);
+
+            ulong v = *(ulong*)(_data + Position);
+
+            Position += 8;
+
+            return v;
         }
 
         internal byte[] ReadArray(int count)
         {
+            EnsureSize(count);
+
             byte[] data = new byte[count];
 
-            for (int i = 0; i < count; i++)
-                data[i] = ReadByte();
+            fixed (byte* ptr = data)
+                Buffer.MemoryCopy(&_data[Position], ptr, count, count);
+
+            Position += count;
 
             return data;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void EnsureSize(int size)
         {
             if (Position + size > Length)

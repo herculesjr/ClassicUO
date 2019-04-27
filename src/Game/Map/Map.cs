@@ -1,5 +1,5 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -26,14 +26,18 @@ using ClassicUO.Configuration;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Scenes;
 using ClassicUO.Interfaces;
+using ClassicUO.IO;
 using ClassicUO.IO.Resources;
+using ClassicUO.Utility;
 
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
+using Multi = ClassicUO.Game.GameObjects.Multi;
+
 namespace ClassicUO.Game.Map
 {
-    public sealed class Map : IDisposable
+    internal sealed class Map
     {
         private readonly bool[] _blockAccessList = new bool[0x1000];
         //private const int CHUNKS_NUM = 5;
@@ -43,8 +47,8 @@ namespace ClassicUO.Game.Map
         public Map(int index)
         {
             Index = index;
-            IO.Resources.Map.LoadMap(index);
-            MapBlockIndex = IO.Resources.Map.MapBlocksSize[Index][0] * IO.Resources.Map.MapBlocksSize[Index][1];
+            FileManager.Map.LoadMap(index);
+            MapBlockIndex = FileManager.Map.MapBlocksSize[Index, 0] * FileManager.Map.MapBlocksSize[Index, 1];
             Chunks = new Chunk[MapBlockIndex];
         }
 
@@ -56,18 +60,6 @@ namespace ClassicUO.Game.Map
         public int MapBlockIndex { get; set; }
 
         public Point Center { get; set; }
-
-        public Chunk GetMapChunk(int rblock, int blockX, int blockY)
-        {
-            ref Chunk chunk = ref Chunks[rblock];
-            if (chunk == null)
-            {
-                _usedIndices.Add(rblock);
-                chunk = new Chunk((ushort)blockX, (ushort)blockY);
-                chunk.Load(Index);
-            }
-            return chunk;
-        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Tile GetTile(short x, short y, bool load = true)
@@ -125,15 +117,7 @@ namespace ClassicUO.Game.Map
 
         public void ClearBockAccess()
         {
-            unsafe
-            {
-                fixed (bool* ptr = _blockAccessList)
-                {
-                    byte* start = (byte*)ptr;
-                    byte* end = start + _blockAccessList.Length;
-                    while (&start[0] != &end[0]) *start++ = 0;
-                }
-            }
+            Array.Clear(_blockAccessList, 0, _blockAccessList.Length);
         }
 
         public sbyte CalculateNearZ(sbyte defaultZ, int x, int y, int z)
@@ -147,19 +131,17 @@ namespace ClassicUO.Game.Map
 
             if (tile != null)
             {
-                //var objects = tile.ObjectsOnTiles;
                 GameObject obj = tile.FirstNode;
 
-                //for (int i = 0; i < objects.Count; i++)
                 for(; obj != null; obj = obj.Right)
                 {
-                    if (!(obj is Static) && obj is Item item && !item.IsMulti)
+                    if (!(obj is Static) && !(obj is Multi))
                         continue;
 
                     if (obj is Mobile)
                         continue;
 
-                    if (obj is IDynamicItem dyn && (!TileData.IsRoof(dyn.ItemData.Flags) || Math.Abs(z - obj.Z) > 6))
+                    if (GameObjectHelper.TryGetStaticData(obj, out var itemdata) && (!itemdata.IsRoof || Math.Abs(z - obj.Z) > 6))
                         continue;
 
                     break;
@@ -183,14 +165,14 @@ namespace ClassicUO.Game.Map
         public IndexMap GetIndex(int blockX, int blockY)
         {
             int block = GetBlock(blockX, blockY);
-            ref IndexMap[] list = ref IO.Resources.Map.BlockData[Index];
+            ref IndexMap[] list = ref FileManager.Map.BlockData[Index];
 
             return block >= list.Length ? IndexMap.Invalid : list[block];
         }
 
         private int GetBlock(int blockX, int blockY)
         {
-            return blockX * IO.Resources.Map.MapBlocksSize[Index][1] + blockY;
+            return blockX * FileManager.Map.MapBlocksSize[Index, 1] + blockY;
         }
 
         public void ClearUnusedBlocks()
@@ -204,7 +186,7 @@ namespace ClassicUO.Game.Map
 
                 if (block.LastAccessTime < ticks && block.HasNoExternalData())
                 {
-                    block.Dispose();
+                    block.Destroy();
                     block = null;
                     _usedIndices.RemoveAt(i--);
 
@@ -214,17 +196,17 @@ namespace ClassicUO.Game.Map
             }
         }
 
-        public void Dispose()
+        public void Destroy()
         {
             for (int i = 0; i < _usedIndices.Count; i++)
             {
                 ref Chunk block = ref Chunks[_usedIndices[i]];
-                block.Dispose();
+                block.Destroy();
                 block = null;
                 _usedIndices.RemoveAt(i--);
             }
 
-            IO.Resources.Map.UnloadMap(Index);
+            FileManager.Map.UnloadMap(Index);
             Chunks = null;
         }
 
@@ -243,17 +225,17 @@ namespace ClassicUO.Game.Map
             if (minBlockY < 0)
                 minBlockY = 0;
 
-            if (maxBlockX >= IO.Resources.Map.MapBlocksSize[Index][0])
-                maxBlockX = IO.Resources.Map.MapBlocksSize[Index][0] - 1;
+            if (maxBlockX >= FileManager.Map.MapBlocksSize[Index, 0])
+                maxBlockX = FileManager.Map.MapBlocksSize[Index, 0] - 1;
 
-            if (maxBlockY >= IO.Resources.Map.MapBlocksSize[Index][1])
-                maxBlockY = IO.Resources.Map.MapBlocksSize[Index][1] - 1;
+            if (maxBlockY >= FileManager.Map.MapBlocksSize[Index, 1])
+                maxBlockY = FileManager.Map.MapBlocksSize[Index, 1] - 1;
             long tick = Engine.Ticks;
             long maxDelay = Engine.FrameDelay[1] >> 1;
 
             for (int i = minBlockX; i <= maxBlockX; i++)
             {
-                int index = i * IO.Resources.Map.MapBlocksSize[Index][1];
+                int index = i * FileManager.Map.MapBlocksSize[Index, 1];
 
                 for (int j = minBlockY; j <= maxBlockY; j++)
                 {

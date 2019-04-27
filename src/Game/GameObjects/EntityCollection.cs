@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -25,13 +25,14 @@ using System.Collections.Generic;
 using System.Linq;
 
 using ClassicUO.Utility;
+using ClassicUO.Utility.Logging;
 
 namespace ClassicUO.Game.GameObjects
 {
-    public class EntityCollection<T> : IEnumerable<T> where T : Entity
+    internal class EntityCollection<T> : IEnumerable<T> where T : Entity
     {
-        private readonly List<T> _added = new List<T>(), _removed = new List<T>();
-        private readonly ConcurrentDictionary<Serial, T> _entities = new ConcurrentDictionary<Serial, T>();
+        private readonly List<Serial> _added = new List<Serial>(), _removed = new List<Serial>();
+        private readonly Dictionary<Serial, T> _entities = new Dictionary<Serial, T>();
 
         public int Count => _entities.Count;
 
@@ -42,23 +43,25 @@ namespace ClassicUO.Game.GameObjects
 
         public IEnumerator<T> GetEnumerator()
         {
-            return _entities.Values.GetEnumerator();
+            return _entities.Select(s => s.Value).GetEnumerator();
+
+            //return _entities.Values.GetEnumerator();
         }
 
-        public event EventHandler<CollectionChangedEventArgs<T>> Added, Removed;
+        public event EventHandler<CollectionChangedEventArgs<Serial>> Added, Removed;
 
         public void ProcessDelta()
         {
-            if (_added.Count > 0)
+            if (_added.Count != 0)
             {
-                CollectionChangedEventArgs<T> list = new CollectionChangedEventArgs<T>(_added);
+                CollectionChangedEventArgs<Serial> list = new CollectionChangedEventArgs<Serial>(_added);
                 _added.Clear();
                 Added.Raise(list);
             }
 
-            if (_removed.Count > 0)
+            if (_removed.Count != 0)
             {
-                CollectionChangedEventArgs<T> list = new CollectionChangedEventArgs<T>(_removed);
+                CollectionChangedEventArgs<Serial> list = new CollectionChangedEventArgs<Serial>(_removed);
                 _removed.Clear();
                 Removed.Raise(list);
             }
@@ -78,30 +81,43 @@ namespace ClassicUO.Game.GameObjects
 
         public bool Add(T entity)
         {
-            if (!_entities.TryAdd(entity.Serial, entity))
+            if (_entities.ContainsKey(entity.Serial))
                 return false;
-            _added.Add(entity);
+            _entities[entity.Serial] = entity;
+            _added.Add(entity.Serial);
 
             return true;
         }
 
-        public T Remove(Serial serial)
+        public void Remove(Serial serial)
         {
-            if (_entities.TryRemove(serial, out T entity))
-                _removed.Add(entity);
+            if (_entities.Remove(serial))
+            {           
+                _removed.Add(serial);
+            }
+        }
 
-            return entity;
+        public void Replace(T entity, Serial newSerial)
+        {
+            if (_entities.Remove(entity.Serial))
+            {
+                foreach (Item i in entity.Items)
+                    i.Container = newSerial;
+
+                _entities[newSerial] = entity;
+                entity.Serial = newSerial;
+            }
         }
 
         public void Clear()
         {
-            _removed.AddRange(this);
+            _removed.AddRange(this.Select(s => s.Serial));
             _entities.Clear();
             ProcessDelta();
         }
     }
 
-    public class CollectionChangedEventArgs<T> : EventArgs, IEnumerable<T>
+    internal class CollectionChangedEventArgs<T> : EventArgs, IEnumerable<T>
     {
         private readonly IReadOnlyList<T> _data;
 

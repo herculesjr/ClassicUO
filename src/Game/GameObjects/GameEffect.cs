@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -22,11 +22,12 @@ using System.Collections.Generic;
 
 using ClassicUO.Game.Data;
 using ClassicUO.Interfaces;
+using ClassicUO.IO;
 using ClassicUO.IO.Resources;
 
 namespace ClassicUO.Game.GameObjects
 {
-    public abstract class GameEffect : GameObject
+    internal abstract class GameEffect : GameObject
     {
         private readonly List<GameEffect> _children;
 
@@ -61,7 +62,7 @@ namespace ClassicUO.Game.GameObjects
 
         public bool IsEnabled { get; set; }
 
-        public Graphic AnimationGraphic { get; set; } = Graphic.Invalid;
+        public Graphic AnimationGraphic { get; set; } = Graphic.INVALID;
 
         public bool IsMoving => Target != null || TargetX != 0 && TargetY != 0;
 
@@ -73,32 +74,33 @@ namespace ClassicUO.Game.GameObjects
 
         public void Load()
         {
-            AnimDataFrame = AnimData.CalculateCurrentGraphic(Graphic);
+            AnimDataFrame = FileManager.AnimData.CalculateCurrentGraphic(Graphic);
             IsEnabled = true;
             AnimIndex = 0;
-            Speed = (AnimDataFrame.FrameInterval > 0 ?  AnimDataFrame.FrameInterval * Constants.ITEM_EFFECT_ANIMATION_DELAY : Constants.ITEM_EFFECT_ANIMATION_DELAY);
+            Speed = (AnimDataFrame.FrameInterval != 0 ?  AnimDataFrame.FrameInterval * Constants.ITEM_EFFECT_ANIMATION_DELAY : Constants.ITEM_EFFECT_ANIMATION_DELAY);
         }
 
         public override void Update(double totalMS, double frameMS)
         {
             base.Update(totalMS, frameMS);
+   
 
-            if (IsDisposed)
-                return;
-
-            if (Source != null && Source.IsDisposed)
+            if (Source != null && Source.IsDestroyed)
             {
-                Dispose();
+                Destroy();
                 return;
             }
+
+            if (IsDestroyed)
+                return;
 
             if (IsEnabled)
             {
                 if (Duration < totalMS && Duration >= 0)
-                    Dispose();
+                    Destroy();
                 else if (LastChangeFrameTime < totalMS)
                 {
-                    if (AnimDataFrame.FrameCount > 0)
+                    if (AnimDataFrame.FrameCount != 0)
                     { 
                         AnimationGraphic = (Graphic) (Graphic + AnimDataFrame.FrameData[AnimIndex]);
                         AnimIndex++;
@@ -131,8 +133,6 @@ namespace ClassicUO.Game.GameObjects
             Source = source;
             Position = source.Position;
             AddToTile(source.X, source.Y);
-            //if (!IsItemEffect)
-            //    Tile = World.Map.GetTile(Source.X, source.Y);
         }
 
         public void SetSource(int x, int y, int z)
@@ -143,8 +143,6 @@ namespace ClassicUO.Game.GameObjects
             SourceZ = z;
             Position = new Position((ushort) x, (ushort) y, (sbyte) z);
             AddToTile(x, y);
-            //if (!IsItemEffect)
-            //    Tile = World.Map.GetTile(x, y);
         }
 
         protected (int x, int y, int z) GetTarget()
@@ -167,11 +165,11 @@ namespace ClassicUO.Game.GameObjects
             TargetZ = z;
         }
 
-        public override void Dispose()
+        public override void Destroy()
         {
             Source = null;
             Target = null;
-            base.Dispose();
+            base.Destroy();
         }
     }
 }

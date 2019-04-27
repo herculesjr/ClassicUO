@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -18,42 +18,38 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
+
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+using System.Threading;
 
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.Map;
+using ClassicUO.Game.Scenes;
+using ClassicUO.Utility.Logging;
+using ClassicUO.Utility.Platforms;
 
 using Microsoft.Xna.Framework;
 
 namespace ClassicUO.Game
 {
-    public static class World
+    internal static class World
     {
-
-        private static EffectManager _effectManager = new EffectManager();
-
-
-        public static void AddEffect(GameEffect effect)
-        {
-            _effectManager.Add(effect);
-        }
-
-        public static void AddEffect(GraphicEffectType type, Serial source, Serial target, Graphic graphic, Hue hue, Position srcPos, Position targPos, byte speed, int duration, bool fixedDir, bool doesExplode, bool hasparticles, GraphicEffectBlendMode blendmode)
-        {
-            _effectManager.Add(type, source, target, graphic, hue, srcPos, targPos, speed, duration, fixedDir, doesExplode, hasparticles, blendmode);
-        }
+        private static readonly EffectManager _effectManager = new EffectManager();
+        private static readonly List<Entity> _toRemove = new List<Entity>();
 
 
-        public static void AddOverheadText(GameObject obj, string text)
-        {
+        public static CorpseManager CorpseManager { get; } = new CorpseManager();
 
-        }
+        public static PartyManager Party { get; } = new PartyManager();
 
-
-        public static HashSet<Item> ToAdd { get; } = new HashSet<Item>();
+        public static HouseManager HouseManager { get; } = new HouseManager();
 
         public static EntityCollection<Item> Items { get; } = new EntityCollection<Item>();
 
@@ -63,7 +59,13 @@ namespace ClassicUO.Game
 
         public static Map.Map Map { get; private set; }
 
-        public static byte ViewRange { get; set; } = 24;
+        public static byte ViewRange { get; set; } = Constants.MAX_VIEW_RANGE;
+
+        public static Serial LastAttack { get; set; }
+
+        public static bool SkillsRequested { get; set; }
+
+        public static Point RangeSize;
 
         public static int MapIndex
         {
@@ -74,11 +76,18 @@ namespace ClassicUO.Game
                 {
                     InternalMapChangeClear(true);
 
+                    if (value < 0 && Map != null)
+                    {
+                        Map.Destroy();
+                        Map = null;
+                        return;
+                    }
+
                     if (Map != null)
                     {
                         if (MapIndex >= 0)
                         {
-                            Map.Dispose();                       
+                            Map.Destroy();                       
                         }
 
                         Position position = Player.Position;
@@ -103,6 +112,8 @@ namespace ClassicUO.Game
                             Map.Center = new Point(Player.X, Player.Y);
                         Map.Initialize();
                     }
+
+                    UoAssist.SignalMapChanged(value);
                 }
             }
         }
@@ -111,7 +122,7 @@ namespace ClassicUO.Game
 
         public static IsometricLight Light { get; } = new IsometricLight
         {
-            Overall = 0, Personal = 0
+            Overall = 0, Personal = 0, RealOverall = 0, RealPersonal = 0,
         };
 
         public static LockedFeatures ClientLockedFeatures { get; } = new LockedFeatures();
@@ -119,7 +130,6 @@ namespace ClassicUO.Game
         public static ClientFeatures ClientFlags { get; } = new ClientFeatures();
 
         public static string ServerName { get; set; }
-
 
 
         public static void Update(double totalMS, double frameMS)
@@ -133,33 +143,46 @@ namespace ClassicUO.Game
                     if (mob.Distance > ViewRange)
                         RemoveMobile(mob);
 
-                    if (mob.IsDisposed)
-                        Mobiles.Remove(mob);
+                    if (mob.IsDestroyed)
+                        _toRemove.Add(mob);
+                }
+
+                if (_toRemove.Count != 0)
+                {
+                    for (int i = 0; i < _toRemove.Count; i++)
+                    {
+                        Mobiles.Remove(_toRemove[i]);
+                        _toRemove.RemoveAt(i--);
+                    }
                 }
 
                 foreach (Item item in Items)
                 {
                     item.Update(totalMS, frameMS);
 
-                    if (item.Distance > ViewRange && item.OnGround)
+                    if (item.OnGround && item.Distance > ViewRange)
                     {
-                        if (HouseManager.TryGetHouse(item, out House house))
+                        if (item.IsMulti)
                         {
-                            if (item.Distance > Constants.MAX_HOUSE_DISTANCE)
-                            {
-                                house.Dispose();
+                            if (HouseManager.TryToRemove(item, ViewRange))
                                 RemoveItem(item);
-                                HouseManager.Remove(item);
-                            }
                         }
                         else
                             RemoveItem(item);
                     }
 
-                    if (item.IsDisposed)
-                        Items.Remove(item);
+                    if (item.IsDestroyed)
+                        _toRemove.Add(item);
                 }
 
+                if (_toRemove.Count != 0)
+                {
+                    for (int i = 0; i < _toRemove.Count; i++)
+                    {
+                        Items.Remove(_toRemove[i]);
+                        _toRemove.RemoveAt(i--);
+                    }
+                }
 
                 _effectManager.Update(totalMS, frameMS);
             }
@@ -183,7 +206,7 @@ namespace ClassicUO.Game
         {
             Item item = Items.Get(serial);
 
-            if (item == null || item.IsDisposed)
+            if (item == null || item.IsDestroyed)
             {
                 Items.Remove(serial);
                 item = new Item(serial);
@@ -196,7 +219,7 @@ namespace ClassicUO.Game
         {
             Mobile mob = Mobiles.Get(serial);
 
-            if (mob == null || mob.IsDisposed)
+            if (mob == null || mob.IsDestroyed)
             {
                 Mobiles.Remove(serial);
                 mob = new Mobile(serial);
@@ -208,25 +231,81 @@ namespace ClassicUO.Game
 
         public static bool RemoveItem(Serial serial)
         {
-            Item item = Items.Get(serial);
-
-            if (item == null)
+            int step = 0;
+            Item item = null;
+            StackTrace trace = new StackTrace();
+            // TODO: try to figure out the weird issue :)
+            try
             {
-                ToAdd.RemoveWhere(i => i == serial);
 
-                return false;
+                item = Items.Get(serial);
+
+                step = 1;
+
+                if (item == null)
+                    return false;
+
+                step = 2;
+
+                if (item.Layer != Layer.Invalid)
+                {
+                    step = 3;
+
+                    Entity e = Get(item.RootContainer);
+
+                    step = 4;
+
+                    if (e != null && e.HasEquipment)
+                    {
+                        step = 5;
+                        int index = (int) item.Layer;
+
+                        if (index < e.Equipment.Length)
+                        {
+                            e.Equipment[(int)item.Layer] = null;
+                        }
+                        step = 6;
+                    }
+                }
+
+                step = 7;
+                foreach (Item i in item.Items)
+                {
+                    RemoveItem(i);
+                }
+                step = 8;
+
+                item.Items.Clear();
+                step = 9;
+
+                item.Destroy();
+                step = 10;
             }
-
-            if (item.Layer != Layer.Invalid && item.RootContainer.IsMobile)
+            catch (Exception e)
             {
-                Mobile mobile = Mobiles.Get(item.RootContainer);
-                if (mobile != null) mobile.Equipment[(int) item.Layer] = null;
-            }
+                string path = Path.Combine(Engine.ExePath, "Logs");
 
-            foreach (Item i in item.Items)
-                RemoveItem(i);
-            item.Items.Clear();
-            item.Dispose();
+                if (!Directory.Exists(path))
+                    Directory.CreateDirectory(path);
+
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("ClassicUO [dev] - v" + Engine.Version);
+                sb.AppendLine($"Thread: {Thread.CurrentThread.Name} - {Thread.CurrentThread.ManagedThreadId} - Engine ThreadID {Engine.ThreadID}");
+                sb.AppendLine($"Serial that causes crash: {serial} - {(item == null ? "NULL" : item.ToString())}");
+                sb.AppendLine("Scene: " + (Engine.SceneManager.CurrentScene == null ? "NULL" : Engine.SceneManager.CurrentScene is LoginScene ? "LoginScene" : "GameScene"));
+                sb.AppendLine("Step: " + step);
+                sb.AppendLine("App trace:\n: " + trace);
+                sb.AppendLine("Exception Message:\n" + e);
+                sb.AppendLine("Exception StackTrace:\n" + e.StackTrace);
+
+              
+
+                File.WriteAllText(Path.Combine(path, "log_Error_World_RemoveItem.txt"), sb.ToString());
+
+                Chat.HandleMessage(Player, "An error is occurred, check /Logs folder. Send it to KaRaShO'!", "ClassicUO", 0x38, MessageType.Regular, MessageFont.Normal, true);
+                Chat.HandleMessage(null, "An error is occurred, check /Logs folder. Send it to KaRaShO'!", "ClassicUO", 0x38, MessageType.Regular, MessageFont.Normal, true);
+
+            }
 
             return true;
         }
@@ -235,12 +314,26 @@ namespace ClassicUO.Game
         {
             Mobile mobile = Mobiles.Get(serial);
 
-            if (mobile == null) return false;
-            foreach (Item i in mobile.Items) RemoveItem(i);
+            if (mobile == null)
+                return false;
+
+            foreach (Item i in mobile.Items)
+                RemoveItem(i);
+
             mobile.Items.Clear();
-            mobile.Dispose();
+            mobile.Destroy();
 
             return true;
+        }
+
+        internal static void AddEffect(GameEffect effect)
+        {
+            _effectManager.Add(effect);
+        }
+
+        public static void AddEffect(GraphicEffectType type, Serial source, Serial target, Graphic graphic, Hue hue, Position srcPos, Position targPos, byte speed, int duration, bool fixedDir, bool doesExplode, bool hasparticles, GraphicEffectBlendMode blendmode)
+        {
+            _effectManager.Add(type, source, target, graphic, hue, srcPos, targPos, speed, duration, fixedDir, doesExplode, hasparticles, blendmode);
         }
 
         public static void Clear()
@@ -248,47 +341,51 @@ namespace ClassicUO.Game
             HouseManager.Clear();
             Items.Clear();
             Mobiles.Clear();
-            Player.Dispose();
+            Player.Destroy();
             Player = null;
-            Map.Dispose();
+            Map.Destroy();
             Map = null;
-            ToAdd.Clear();
-            IO.UltimaLive.IsUltimaLiveActive = false;
-            IO.UltimaLive.ShardName = null;
+            Light.Overall = Light.RealOverall = 0;
+            Light.Personal = Light.RealPersonal = 0;
             ClientFlags.SetFlags(0);
             ClientLockedFeatures.SetFlags(0);
+            HouseManager.Clear();
+            Party.Members.Clear();
             ServerName = string.Empty;
+            LastAttack = 0;
+            Chat.PromptData = default;
+            _effectManager.Clear();
+            _toRemove.Clear();
+            CorpseManager.Clear();
         }
 
         private static void InternalMapChangeClear(bool noplayer)
         {
             if (!noplayer)
             {
-                Map.Dispose();
+                Map.Destroy();
                 Map = null;
-                Player.Dispose();
+                Player.Destroy();
                 Player = null;
             }
 
             foreach (Item item in Items)
             {
-                if (noplayer && Player != null && !Player.IsDisposed)
+                if (noplayer && Player != null && !Player.IsDestroyed)
                 {
                     if (item.RootContainer == Player)
                         continue;
                 }
-
                 RemoveItem(item);
             }
 
             foreach (Mobile mob in Mobiles)
             {
-                if (noplayer && Player != null && !Player.IsDisposed)
+                if (noplayer && Player != null && !Player.IsDestroyed)
                 {
                     if (mob == Player)
                         continue;
                 }
-
                 RemoveMobile(mob);
             }
         }

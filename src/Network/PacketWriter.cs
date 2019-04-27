@@ -1,5 +1,5 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -22,7 +22,7 @@ using System;
 
 namespace ClassicUO.Network
 {
-    public class PacketWriter : PacketBase
+    internal class PacketWriter : PacketBase
     {
         private byte[] _data;
 
@@ -58,8 +58,9 @@ namespace ClassicUO.Network
 
         public override byte[] ToArray()
         {
-            if (Length != Position)
+            if (IsDynamic && Length != Position)
                 Array.Resize(ref _data, Position);
+
             WriteSize();
 
             return _data;
@@ -74,16 +75,20 @@ namespace ClassicUO.Network
             }
         }
 
-        protected override void EnsureSize(int length)
+        protected override bool EnsureSize(int length)
         {
-            if (length < 0) throw new ArgumentOutOfRangeException("length");
+            if (length < 0)
+                throw new ArgumentOutOfRangeException(nameof(length));
 
             if (IsDynamic)
             {
                 while (Position + length > Length)
                     Array.Resize(ref _data, Length + length * 2);
+
+                return false;
             }
-            else if (Position + length > Length) throw new ArgumentOutOfRangeException("length");
+
+            return Position + length > Length;
         }
     }
 }

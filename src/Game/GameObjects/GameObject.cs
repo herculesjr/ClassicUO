@@ -1,5 +1,5 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -18,84 +18,58 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
-using System;
-using System.Collections.Generic;
-using System.Reflection;
 using ClassicUO.Game.Map;
-using ClassicUO.Game.Views;
 using ClassicUO.Interfaces;
-using ClassicUO.IO.Resources;
-using ClassicUO.Renderer;
 using ClassicUO.Utility;
-
 using Microsoft.Xna.Framework;
-
+using System;
+using System.Runtime.CompilerServices;
 using IUpdateable = ClassicUO.Interfaces.IUpdateable;
 
 namespace ClassicUO.Game.GameObjects
 {
-    public abstract class GameObject : IUpdateable, IDisposable, INode<GameObject>
+    internal interface IGameEntity
     {
-        private Lazy< List<TextOverhead> > _overHeads = new Lazy<List<TextOverhead>>(() =>
-        {
-            return new List<TextOverhead>();
-        }) ;
-        private Position _position = Position.Invalid;
-        private View _view;
+        bool IsSelected { get; set; }
+    }
+
+    internal abstract partial class GameObject : IGameEntity, IUpdateable, INode<GameObject>
+    {
+        private Position _position = Position.INVALID;
         public Vector3 Offset;
-        
+        private Tile _tile;
+        private Vector3 _screenPosition;
+
+
         protected GameObject()
         {
-            
+
         }
 
         public GameObject Left { get; set; }
         public GameObject Right { get; set; }
 
+        protected virtual bool CanCreateOverheads => true;
+        public OverheadMessage OverheadMessageContainer { get; private set; }
 
-       
-        protected Vector3 ScreenPosition { get; private set; }
-        
-        public Vector3 RealScreenPosition { get; protected set; }
+        public Vector3 ScreenPosition => _screenPosition;
+
+        public Vector3 RealScreenPosition;
 
         public bool IsPositionChanged { get; protected set; }
 
-        //public Tile Tile { get; protected set; }
-
-        public virtual Position Position
+        public Position Position
         {
             get => _position;
             set
             {
                 if (_position != value)
                 {
-                    //if (World.Map != null)
-                    //{
-                    //    if (Tile != null/* Tile.Invalid*/)
-                    //        Tile.RemoveGameObject(this);
-                    //}
-
                     _position = value;
-                    ScreenPosition = new Vector3((_position.X - _position.Y) * 22, (_position.X + _position.Y) * 22 - _position.Z * 4, 0);
+                    _screenPosition.X = (_position.X - _position.Y) * 22;
+                    _screenPosition.Y = (_position.X + _position.Y) * 22 - _position.Z * 4;
                     IsPositionChanged = true;
-
-                    //if (World.Map != null)
-                    //{
-                    //     Tile newTile =  World.Map.GetTile(value.X, value.Y);
-
-                    //    if (newTile != null)
-                    //        newTile.AddGameObject(this);
-                    //    Tile = newTile;
-                    //}
-                    //else if (this != World.Player)
-                    //    Dispose();
-
-                    //if (World.Map != null)
-                    //{
-                    //    Tile = World.Map.GetTile(value.X, value.Y);
-                    //}
-                    //else if (this != World.Player)
-                    //    Dispose();
+                    OnPositionChanged();
                 }
             }
         }
@@ -122,19 +96,14 @@ namespace ClassicUO.Game.GameObjects
 
         public virtual Graphic Graphic { get; set; }
 
-        public View View => _view ?? (_view = CreateView());
-
         public sbyte AnimIndex { get; set; }
-
-        public IReadOnlyList<TextOverhead> OverHeads => _overHeads.IsValueCreated ? _overHeads.Value : null;
 
         public int CurrentRenderIndex { get; set; }
 
-        public byte UseInRender { get; set; }
+        //public byte UseInRender { get; set; }
 
         public short PriorityZ { get; set; }
 
-        private Tile _tile;
 
         //public Tile Tile
         //{
@@ -156,48 +125,49 @@ namespace ClassicUO.Game.GameObjects
         //    }
         //}
 
-
-        public bool IsDisposed { get; private set; }
+        public bool IsDestroyed { get; private set; }
 
         public int Distance
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
-            {         
-                    
-                if (World.Player.Steps.Count > 0)
-                {
-                    Mobile.Step step = World.Player.Steps.Back();
+            {
+                if (World.Player == null)
+                    return ushort.MaxValue;
+                if (this == World.Player)
+                    return 0;
 
-                    return Position.DistanceTo(step.X, step.Y);
+                int x, y;
+
+                if (this is Mobile m && m.IsMoving)
+                {
+                    Mobile.Step step = m.Steps.Back();
+                    x = step.X;
+                    y = step.Y;
+                }
+                else
+                {
+                    x = X;
+                    y = Y;
                 }
 
-                return Position.DistanceTo(World.Player.Position);
+                int fx = World.RangeSize.X;
+                int fy = World.RangeSize.Y;
 
+                return Math.Max(Math.Abs(x - fx), Math.Abs(y - fy));
             }
         }
 
         public virtual void Update(double totalMS, double frameMS)
         {
-            if (IsDisposed) return;
-
-            if (_overHeads.IsValueCreated)
-            {
-                for (int i = 0; i < _overHeads.Value.Count; i++)
-                {
-                    TextOverhead gt = _overHeads.Value[i];
-                    gt.Update(totalMS, frameMS);
-
-                    if (gt.IsDisposed)
-                        _overHeads.Value.RemoveAt(i--);
-                }
-            }
+            OverheadMessageContainer?.Update();
         }
 
         public void AddToTile(int x, int y)
         {
             if (World.Map != null)
             {
-                if (Position != Position.Invalid)
+                if (Position != Position.INVALID)
                     _tile?.RemoveGameObject(this);
 
                 _tile = World.Map.GetTile(x, y);
@@ -206,100 +176,78 @@ namespace ClassicUO.Game.GameObjects
         }
 
         public void AddToTile() => AddToTile(X, Y);
-      
 
-        public event EventHandler Disposed;
+        public void AddToTile(Tile tile)
+        {
+            if (World.Map != null)
+            {
+                if (Position != Position.INVALID)
+                    _tile?.RemoveGameObject(this);
+
+                _tile = tile;
+                _tile?.AddGameObject(this);
+            }
+        }
+
+        public void RemoveFromTile()
+        {
+            if (World.Map != null && _tile != null)
+            {
+                _tile?.RemoveGameObject(this);
+                _tile = null;
+            }
+        }
 
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UpdateRealScreenPosition(Point offset)
         {
-            RealScreenPosition = new Vector3(ScreenPosition.X - offset.X - 22, ScreenPosition.Y - offset.Y - 22, 0);
+            RealScreenPosition.X = ScreenPosition.X - offset.X - 22;
+            RealScreenPosition.Y = ScreenPosition.Y - offset.Y - 22;
             IsPositionChanged = false;
         }
 
         public int DistanceTo(GameObject entity) => Position.DistanceTo(entity.Position);
 
-        protected virtual View CreateView()
+        public void AddOverhead(MessageType type, string message)
         {
-            return null;
+            AddOverhead(type, message, Engine.Profile.Current.ChatFont, Engine.Profile.Current.SpeechHue, true);
         }
 
-        public TextOverhead AddGameText(MessageType type, string text, byte font, Hue hue, bool isunicode, float timeToLive = 0.0f)
+        public void AddOverhead(MessageType type, string text, byte font, Hue hue, bool isunicode, float timeToLive = 0.0f, bool ishealthmessage = false)
         {
             if (string.IsNullOrEmpty(text))
-                return null;
-
-            TextOverhead overhead;
-
-            for (int i = 0; i < _overHeads.Value.Count; i++)
-            {
-                overhead = _overHeads.Value[i];
-
-                if (type == MessageType.Label && overhead.Text == text && overhead.MessageType == type && !overhead.IsDisposed)
-                {
-                    overhead.Hue = hue;
-                    _overHeads.Value.RemoveAt(i);
-                    InsertGameText(overhead);
-
-                    return overhead;
-                }
-            }
-
-            int width = isunicode ? Fonts.GetWidthUnicode(font, text) : Fonts.GetWidthASCII(font, text);
-
-            if (width > 200)
-                width = isunicode ? Fonts.GetWidthExUnicode(font, text, 200, TEXT_ALIGN_TYPE.TS_LEFT, (ushort) FontStyle.BlackBorder) : Fonts.GetWidthExASCII(font, text, 200, TEXT_ALIGN_TYPE.TS_LEFT, (ushort) FontStyle.BlackBorder);
-            else
-                width = 0;
-            overhead = new TextOverhead(this, text, width, hue, font, isunicode, FontStyle.BlackBorder, timeToLive);
-            InsertGameText(overhead);
-
-            if (_overHeads.Value.Count > 5)
-            {
-                TextOverhead over = _overHeads.Value[_overHeads.Value.Count - 1];
-
-                if (!over.IsPersistent && over.MessageType != MessageType.Spell && over.MessageType != MessageType.Label)
-                {
-                    over.Dispose();
-                    _overHeads.Value.RemoveAt(_overHeads.Value.Count - 1);
-                }
-            }
-
-            return overhead;
-        }
-
-        private void InsertGameText(TextOverhead gameText)
-        {
-            _overHeads.Value.Insert(_overHeads.Value.Count == 0 || _overHeads.Value[0].MessageType != MessageType.Label ? 0 : 1, gameText);
-        }
-
-        protected void DisposeView()
-        {
-            if (_view != null)
-                _view = null;
-        }
-
-        public virtual void Dispose()
-        {
-            if (IsDisposed)
                 return;
-            IsDisposed = true;
 
-            Disposed.Raise();
 
-            DisposeView();
+            if (OverheadMessageContainer == null)
+                OverheadMessageContainer = new OverheadMessage(this);
+
+            OverheadMessageContainer.AddMessage(text, hue, font, isunicode, type, ishealthmessage);
+
+            //OverheadAdded?.Raise(this);
+        }
+
+
+        protected virtual void OnPositionChanged()
+        {
+
+        }
+
+
+        public virtual void Destroy()
+        {
+            if (IsDestroyed)
+                return;
+
+            IsDestroyed = true;
 
             _tile?.RemoveGameObject(this);
             _tile = null;
 
-            //Tile = null;
-
-            if (_overHeads.IsValueCreated)
-            {
-                _overHeads.Value.ForEach(s => s.Dispose());
-                _overHeads.Value.Clear();
-                _overHeads = null;
-            }
+            OverheadMessageContainer?.Destroy();
+           
+            Texture = null;
         }
     }
 }

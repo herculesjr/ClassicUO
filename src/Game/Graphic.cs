@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -23,18 +23,21 @@ using System.Globalization;
 
 namespace ClassicUO.Game
 {
-    public struct Graphic : IComparable, IComparable<ushort>
+    internal readonly struct Graphic : IComparable<ushort>
     {
-        public const ushort Invariant = ushort.MaxValue;
-        public static Graphic Invalid = new Graphic(0xFFFF);
+        public bool Equals(Graphic other)
+        {
+            return _value == other._value;
+        }
+
+        public const ushort INVARIANT = ushort.MaxValue;
+        public const ushort INVALID = 0xFFFF;
         private readonly ushort _value;
 
         public Graphic(ushort graphic)
         {
             _value = graphic;
         }
-
-        public bool IsInvariant => _value == Invariant;
 
         public static implicit operator Graphic(ushort value)
         {
@@ -66,9 +69,11 @@ namespace ClassicUO.Game
             return g1._value > g2._value;
         }
 
-        public int CompareTo(object obj)
+        public override bool Equals(object obj)
         {
-            return _value.CompareTo(obj);
+            if (ReferenceEquals(null, obj)) return false;
+
+            return obj is Graphic other && Equals(other);
         }
 
         public int CompareTo(ushort other)
@@ -78,28 +83,12 @@ namespace ClassicUO.Game
 
         public override string ToString()
         {
-            return string.Format("0x{0:X4}", _value);
+            return $"0x{_value:X4}";
         }
 
         public override int GetHashCode()
         {
             return _value.GetHashCode();
-        }
-
-        public override bool Equals(object obj)
-        {
-            switch (obj)
-            {
-                case Graphic graphic:
-
-                    return this == graphic;
-                case ushort @ushort:
-
-                    return _value == @ushort;
-                default:
-
-                    return false;
-            }
         }
 
         public static Graphic Parse(string str)

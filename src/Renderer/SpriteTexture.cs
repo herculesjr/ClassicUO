@@ -1,5 +1,5 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -31,7 +31,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace ClassicUO.Renderer
 {
-    public class SpriteTexture : Texture2D
+    internal class SpriteTexture : Texture2D
     {
         private bool[] _hitMap;
         private readonly bool _is32Bit;
@@ -104,7 +104,7 @@ namespace ClassicUO.Renderer
         }
     }
 
-    public class FontTexture : SpriteTexture
+    internal class FontTexture : SpriteTexture
     {
         public FontTexture(int width, int height, int linescount, List<WebLinkRect> links) : base(width, height)
         {
@@ -117,21 +117,18 @@ namespace ClassicUO.Renderer
         public List<WebLinkRect> Links { get; }
     }
 
-    public class AnimationFrameTexture : SpriteTexture
+    internal class AnimationFrameTexture : SpriteTexture
     {
-        public AnimationFrameTexture(int id, int width, int height) : base(width, height, false)
+        public AnimationFrameTexture(int width, int height) : base(width, height, false)
         {
-            ID = id;
         }
 
         public short CenterX { get; set; }
 
         public short CenterY { get; set; }
-
-        public int ID { get; }
     }
 
-    public class ArtTexture : SpriteTexture
+    internal class ArtTexture : SpriteTexture
     {
         public ArtTexture(int offsetX, int offsetY, int offsetW, int offsetH, int width, int height) : base(width, height, false)
         {

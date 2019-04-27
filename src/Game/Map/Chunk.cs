@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -23,7 +23,9 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
+using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
+using ClassicUO.IO;
 using ClassicUO.IO.Resources;
 using ClassicUO.Utility.Logging;
 
@@ -31,7 +33,7 @@ using Microsoft.Xna.Framework;
 
 namespace ClassicUO.Game.Map
 {
-    public sealed class Chunk : IDisposable
+    internal sealed class Chunk
     {
         public Chunk(ushort x, ushort y)
         {
@@ -62,7 +64,7 @@ namespace ClassicUO.Game.Map
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe void Load(int map)
         {
-            IndexMap im = GetIndex(map);
+            ref readonly IndexMap im = ref GetIndex(map);
 
             if (im.MapAddress != 0)
             {
@@ -92,7 +94,7 @@ namespace ClassicUO.Game.Map
                         land.Calculate(tileX, tileY, z);
                         land.Position = new Position(tileX, tileY, z);
 
-                        Tiles[x, y].AddGameObject(land);
+                        land.AddToTile(Tiles[x, y]);
                     }
                 }
 
@@ -124,10 +126,10 @@ namespace ClassicUO.Game.Map
                                     Position = new Position(staticX, staticY, z)
                                 };                  
 
-                                if (TileData.IsAnimated(staticObject.ItemData.Flags))
+                                if (staticObject.ItemData.IsAnimated)
                                     World.AddEffect(new AnimatedItemEffect(staticObject, staticObject.Graphic, staticObject.Hue, -1));
                                 else
-                                    Tiles[x, y].AddGameObject(staticObject);
+                                    staticObject.AddToTile(Tiles[x, y]);
                             }
                         }
                     }
@@ -135,6 +137,94 @@ namespace ClassicUO.Game.Map
 
 
                 //CreateLand();
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public unsafe void LoadStatics(int map)
+        {
+            ref readonly IndexMap im = ref GetIndex(map);
+
+            if (im.MapAddress != 0)
+            {
+                int bx = X * 8;
+                int by = Y * 8;
+
+                if (im.StaticAddress != 0)
+                {
+                    StaticsBlock* sb = (StaticsBlock*)im.StaticAddress;
+
+                    if (sb != null)
+                    {
+                        int count = (int)im.StaticCount;
+
+                        for (int i = 0; i < count; i++, sb++)
+                        {
+                            if (sb->Color != 0 && sb->Color != 0xFFFF)
+                            {
+                                ushort x = sb->X;
+                                ushort y = sb->Y;
+                                int pos = y * 8 + x;
+
+                                if (pos >= 64)
+                                    continue;
+                                sbyte z = sb->Z;
+
+                                ushort staticX = (ushort)(bx + x);
+                                ushort staticY = (ushort)(by + y);
+
+                                Static staticObject = new Static(sb->Color, sb->Hue, pos)
+                                {
+                                    Position = new Position(staticX, staticY, z)
+                                };
+
+                                if (staticObject.ItemData.IsAnimated)
+                                    World.AddEffect(new AnimatedItemEffect(staticObject, staticObject.Graphic, staticObject.Hue, -1));
+                                else
+                                    staticObject.AddToTile(Tiles[x, y]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public unsafe void LoadLand(int map)
+        {
+            ref readonly IndexMap im = ref GetIndex(map);
+
+            if (im.MapAddress != 0)
+            {
+                MapBlock* block = (MapBlock*)im.MapAddress;
+                MapCells* cells = (MapCells*)&block->Cells;
+                int bx = X * 8;
+                int by = Y * 8;
+
+                for (int x = 0; x < 8; x++)
+                {
+                    for (int y = 0; y < 8; y++)
+                    {
+                        int pos = y * 8 + x;
+                        ushort tileID = (ushort)(cells[pos].TileID & 0x3FFF);
+                        sbyte z = cells[pos].Z;
+
+                        Land land = new Land(tileID)
+                        {
+                            Graphic = tileID,
+                            AverageZ = z,
+                            MinZ = z,
+                        };
+
+                        ushort tileX = (ushort)(bx + x);
+                        ushort tileY = (ushort)(by + y);
+
+                        land.Calculate(tileX, tileY, z);
+                        land.Position = new Position(tileX, tileY, z);
+
+                        land.AddToTile(Tiles[x, y]);
+                    }
+                }
             }
         }
 
@@ -166,7 +256,7 @@ namespace ClassicUO.Game.Map
         //                sbyte tileZ = tile.Z;
 
         //                tile.Calculate(tileX, tileY, tileZ);
-                        
+
         //                t.AddGameObject(tile);
         //            }
 
@@ -174,24 +264,23 @@ namespace ClassicUO.Game.Map
         //    }
         //}
 
-        private IndexMap GetIndex(int map) => GetIndex(map, X, Y);
+        private ref IndexMap GetIndex(int map) => ref FileManager.Map.GetIndex(map, X, Y);
 
-        private static IndexMap GetIndex(int map, int x, int y) => IO.Resources.Map.GetIndex(map, x, y);
-
-        public void Dispose()
+        public void Destroy()
         {
             for (int i = 0; i < 8; i++)
             {
                 for (int j = 0; j < 8; j++)
                 {
-                    Tile tile = Tiles[i, j];
+                    GameObject obj = Tiles[i, j].FirstNode;
 
-                    for (GameObject obj = tile.FirstNode; obj != null; obj = obj.Right)
+                    while (obj.Left != null)
+                        obj = obj.Left;
+
+                    for (GameObject right = obj.Right; obj != null; obj = right, right = right?.Right)
                     {
                         if (obj != World.Player)
-                        {
-                           tile.RemoveGameObject(obj);
-                        }
+                            obj.Destroy();
                     }
 
                     Tiles[i, j] = null;
@@ -209,9 +298,25 @@ namespace ClassicUO.Game.Map
                 {
                     Tile tile = Tiles[i, j];
 
-                    for (GameObject obj = tile.FirstNode; obj != null; obj = obj.Right)
+                    GameObject obj = tile.FirstNode;
+
+                    while (obj.Left != null)
+                        obj = obj.Left;
+
+                    for (; obj != null; obj = obj.Right)
                     {
-                        if (!(obj is Land) && !(obj is Static))
+                        if (obj is GameEffect effect)
+                        {
+                            switch (effect.Source)
+                            {
+                                case Static _: continue;
+                                case Item _: return false;
+                                default: continue;
+                            }
+                        }
+   
+
+                        if (!(obj is Land) && !(obj is Static) /*&& !(obj is Multi)*/)
                             return false;
                     }
                 }

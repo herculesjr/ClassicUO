@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -23,17 +23,12 @@ using System.Collections.Generic;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.IO.Resources;
 
+using Multi = ClassicUO.Game.GameObjects.Multi;
+
 namespace ClassicUO.Game.Map
 {
-    public static class TileSorter
+    internal static class TileSorter
     {
-        //public static void Sort(ref GameObject first)
-        //{
-        //    //MergeSort(ref first);
-
-        //    first = MergeSort(first);
-        //}
-
         // https://www.geeksforgeeks.org/merge-sort-for-doubly-linked-list/
 
         public static GameObject Sort(GameObject first)
@@ -47,7 +42,7 @@ namespace ClassicUO.Game.Map
             if (second == null)
                 return first;
 
-            if (Compare(first, second) < 0)
+            if (Compare(first, second) <= 0)
             {
                 first.Right = Merge(first.Right, second);
                 first.Right.Left = first;
@@ -65,7 +60,7 @@ namespace ClassicUO.Game.Map
 
         private static GameObject MergeSort(GameObject head)
         {
-            if (head == null || head.Right == null)
+            if (head?.Right == null)
                 return head;
 
             GameObject second = Split(head);
@@ -81,7 +76,7 @@ namespace ClassicUO.Game.Map
             GameObject fast = head;
             GameObject slow = head;
 
-            while (fast.Right != null && fast.Right.Right != null)
+            while (fast.Right?.Right != null)
             {
                 fast = fast.Right.Right;
                 slow = slow.Right;
@@ -92,111 +87,6 @@ namespace ClassicUO.Game.Map
 
             return temp;
         }
-
-        //private static void Split(GameObject head, out GameObject front, out GameObject back)
-        //{
-        //    if (head?.Right == null)
-        //    {
-        //        front = head;
-        //        back = null;
-        //    }
-        //    else
-        //    {
-        //        GameObject slow = head;
-        //        GameObject fast = head.Right;
-
-        //        while (fast != null)
-        //        {
-        //            fast = fast.Right;
-
-        //            if (fast != null)
-        //            {
-        //                slow = slow.Right;
-        //                fast = fast.Right;
-        //            }
-        //        }
-
-        //        front = head;
-        //        back = slow.Right;
-        //        back.Left = null;
-        //        slow.Right = null;
-        //    }
-        //}
-
-        //private static void Merge(ref GameObject head, ref GameObject l1, ref GameObject l2)
-        //{
-        //    GameObject newHead;
-
-        //    if (l1 == null)
-        //        newHead = l2;
-        //    else if (l2 == null)
-        //        newHead = l1;
-        //    else
-        //    {
-        //        if (Compare(l2, l1) < 0)
-        //        {
-        //            newHead = l2;
-        //            l2 = l2.Right;
-        //        }
-        //        else
-        //        {
-        //            newHead = l1;
-        //            l1 = l1.Right;
-        //        }
-
-        //        newHead.Left = null;
-        //        GameObject curr = newHead;
-
-        //        while (l1 != null && l2 != null)
-        //        {
-        //            if (Compare(l2, l1) < 0)
-        //            {
-        //                curr.Right = l2;
-        //                l2.Left = curr;
-        //                l2 = l2.Right;
-        //            }
-        //            else
-        //            {
-        //                curr.Right = l1;
-        //                l1.Left = curr;
-        //                l1 = l1.Right;
-        //            }
-
-        //            curr = curr.Right;
-        //        }
-
-        //        while (l1 != null)
-        //        {
-        //            curr.Right = l1;
-        //            l1.Left = curr;
-        //            l1 = l1.Right;
-        //            curr = curr.Right;
-        //        }
-
-        //        while (l2 != null)
-        //        {
-        //            curr.Right = l2;
-        //            l2.Left = curr;
-        //            l2 = l2.Right;
-        //            curr = curr.Right;
-        //        }
-        //    }
-
-        //    head = newHead;
-        //}
-
-        //private static void MergeSort(ref GameObject first)
-        //{
-        //    if (first?.Right != null)
-        //    {
-        //        Split(first, out GameObject h1, out GameObject h2);
-        //        MergeSort(ref h1);
-        //        MergeSort(ref h2);
-        //        Merge(ref first, ref h1, ref h2);
-        //    }
-        //}
-
-
 
 
         private static int Compare(GameObject x, GameObject y)
@@ -237,12 +127,16 @@ namespace ClassicUO.Game.Map
                 case Land tile:
 
                     return (tile.AverageZ, 0, 0, 0);
+
+                case Multi multi:
+
+                    return (multi.Z, 1, (multi.ItemData.Height > 0 ? 1 : 0) + (multi.ItemData.IsBackground ? 0 : 1), 0);
                 case Static staticitem:
 
-                    return (staticitem.Z, 1, (staticitem.ItemData.Height > 0 ? 1 : 0) + (TileData.IsBackground(staticitem.ItemData.Flags) ? 0 : 1), staticitem.Index);
+                    return (staticitem.Z, 1, (staticitem.ItemData.Height > 0 ? 1 : 0) + (staticitem.ItemData.IsBackground ? 0 : 1), staticitem.Index);
                 case Item item:
 
-                    return (item.Z, item.IsCorpse ? 4 : 2, (item.ItemData.Height > 0 ? 1 : 0) + (TileData.IsBackground(item.ItemData.Flags) ? 0 : 1), (int) item.Serial.Value);
+                    return (item.Z, item.IsCorpse ? 4 : 2, (item.ItemData.Height > 0 ? 1 : 0) + (item.ItemData.IsBackground ? 0 : 1), (int) item.Serial.Value);
                 default:
 
                     return (0, 0, 0, 0);

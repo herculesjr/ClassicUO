@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -21,106 +21,126 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
-using ClassicUO.Game.Gumps.Controls;
-using ClassicUO.Game.Gumps.UIGumps;
-using ClassicUO.Game.System;
+using ClassicUO.Game.Managers;
+using ClassicUO.Game.UI.Controls;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Input;
-using ClassicUO.Interfaces;
-using ClassicUO.IO.Resources;
-using ClassicUO.Renderer;
+using ClassicUO.IO;
+using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 
 using Microsoft.Xna.Framework;
-
 using SDL2;
+
+using Multi = ClassicUO.Game.GameObjects.Multi;
 
 namespace ClassicUO.Game.Scenes
 {
-    partial class GameScene
+    internal partial class GameScene
     {
         private double _dequeueAt;
         private bool _inqueue;
         private Action _queuedAction;
         private Entity _queuedObject;
-        private bool _rightMousePressed;
-        public List<Mobile> MobileGumpStack = new List<Mobile>();
-        public List<Mobile> PartyMemberGumpStack = new List<Mobile>();
-        public List<Skill> SkillButtonGumpStack = new List<Skill>();
-        
-        public bool IsMouseOverUI => Engine.UI.IsMouseOverUI && !(Engine.UI.MouseOverControl is WorldViewport);
+        private bool _rightMousePressed, _continueRunning, _useObjectHandles;
 
-        public bool IsMouseOverWorld => Engine.UI.IsMouseOverUI && Engine.UI.MouseOverControl is WorldViewport;
+        private readonly Dictionary<SDL.SDL_Keycode, Direction> _keycodeDirection = new Dictionary<SDL.SDL_Keycode, Direction>()
+        {
+           { SDL.SDL_Keycode.SDLK_LEFT, Direction.Left },
+           { SDL.SDL_Keycode.SDLK_RIGHT, Direction.Right },
+           { SDL.SDL_Keycode.SDLK_UP, Direction.Up },
+           { SDL.SDL_Keycode.SDLK_DOWN, Direction.Down },
+        };
+
+        private readonly Dictionary<SDL.SDL_Keycode, Direction> _keycodeDirectionNum = new Dictionary<SDL.SDL_Keycode, Direction>()
+        {
+           { SDL.SDL_Keycode.SDLK_KP_4, Direction.Left },
+           { SDL.SDL_Keycode.SDLK_KP_6, Direction.Right },
+           { SDL.SDL_Keycode.SDLK_KP_8, Direction.Up },
+           { SDL.SDL_Keycode.SDLK_KP_2, Direction.Down },
+           { SDL.SDL_Keycode.SDLK_KP_9, Direction.North },
+           { SDL.SDL_Keycode.SDLK_KP_3, Direction.East },
+           { SDL.SDL_Keycode.SDLK_KP_7, Direction.West },
+           { SDL.SDL_Keycode.SDLK_KP_1, Direction.South },
+        };
+
+        private bool _isShiftDown;
+        private bool _isCtrlDown;
+
+        public bool IsMouseOverUI => Engine.UI.IsMouseOverAControl && !(Engine.UI.MouseOverControl is WorldViewport);
+        public bool IsMouseOverViewport => Engine.UI.IsMouseOverAControl && Engine.UI.MouseOverControl is WorldViewport;
 
         private void MoveCharacterByInputs()
         {
-            if (World.InGame)
+            if (World.InGame && !Pathfinder.AutoWalking)
             {
                 Point center = new Point(Engine.Profile.Current.GameWindowPosition.X + (Engine.Profile.Current.GameWindowSize.X >> 1), Engine.Profile.Current.GameWindowPosition.Y + (Engine.Profile.Current.GameWindowSize.Y>> 1));
                 Direction direction = DirectionHelper.DirectionFromPoints(center, Mouse.Position);
-                World.Player.Walk(direction, true);
+
+                float distanceFromCenter = Utility.MathHelper.GetDistance(center, Mouse.Position);
+
+                bool run = distanceFromCenter >= 150.0f;
+
+                World.Player.Walk(direction, run);
             }
         }
 
-        private void OnLeftMouseButtonDown(object sender, EventArgs e)
+        // LEFT
+        private void OnLeftMouseDown(object sender, EventArgs e)
         {
-            if (IsMouseOverWorld)
-            {
-                GameObject obj = _mousePicker.MouseOverObject;
-                Point point = _mousePicker.MouseOverObjectPoint;
-                _dragginObject = obj;
-                _dragOffset = point;
-            }
-        }
+            if (!IsMouseOverViewport)
+                return;
 
-        private void OnLeftMouseButtonUp(object sender, EventArgs e)
-        {
-            if (TargetSystem.IsTargeting)
+            if (_rightMousePressed)
             {
-                switch (TargetSystem.TargetingState)
+                _continueRunning = true;
+            }
+
+            _dragginObject = _mousePicker.MouseOverObject as GameObject;
+            _dragOffset = _mousePicker.MouseOverObjectPoint;
+        }
+        private void OnLeftMouseUp(object sender, EventArgs e)
+        {
+            if (!IsMouseOverViewport)
+                return;
+
+            if (_dragginObject != null)
+                _dragginObject = null;
+
+            if (Engine.UI.IsDragging /*&& Mouse.LDroppedOffset != Point.Zero*/)
+                return;
+
+            if (TargetManager.IsTargeting)
+            {
+                switch (TargetManager.TargetingState)
                 {
-                    case TargetType.Position:
-                    case TargetType.Object:
-                        GameObject obj = null;
-
-                        if (IsMouseOverUI)
-                        {
-                            Control control = Engine.UI.MouseOverControl;
-
-                            if (control is ItemGump gumpling)
-                                obj = gumpling.Item;
-                            else if (control.Parent is MobileHealthGump healthGump)
-                                obj = healthGump.Mobile;
-                        }
-                        else if (IsMouseOverWorld) obj = SelectedObject;
-
+                    case CursorTarget.Position:
+                    case CursorTarget.Object:
+                    case CursorTarget.MultiPlacement:
+                        var obj = SelectedObject;
                         if (obj != null)
                         {
-                            TargetSystem.TargetGameObject(obj);
+                            TargetManager.TargetGameObject(obj);
                             Mouse.LastLeftButtonClickTime = 0;
                         }
 
                         break;
-                    case TargetType.Nothing:
 
-                        break;
-                    case TargetType.SetTargetClientSide:
-                        obj = null;
-                        if (IsMouseOverWorld) obj = SelectedObject;
-                        if (obj != null)
+                    case CursorTarget.SetTargetClientSide:
+                        if (SelectedObject is GameObject obj2)
                         {
-                            TargetSystem.TargetGameObject(obj);
+                            TargetManager.TargetGameObject(obj2);
                             Mouse.LastLeftButtonClickTime = 0;
-                            Engine.UI.Add(new InfoGump(obj));
+                            Engine.UI.Add(new InfoGump(obj2));
 
                         }
                         break;
+
                     default:
                         Log.Message(LogTypes.Warning, "Not implemented.");
-
                         break;
                 }
             }
@@ -128,275 +148,351 @@ namespace ClassicUO.Game.Scenes
             {
                 SelectedObject = null;
 
-                if (IsMouseOverWorld)
+                if (_mousePicker.MouseOverObject is GameObject obj && obj.Distance < Constants.DRAG_ITEMS_DISTANCE)
                 {
-                    GameObject obj = _mousePicker.MouseOverObject;
-
-                    if (obj != null && obj.Distance < Constants.DRAG_ITEMS_DISTANCE)
-                    {
-                        switch (obj)
-                        {
-                            case Mobile mobile:
-                                MergeHeldItem(mobile);
-
-                                break;
-                            case IDynamicItem dyn:
-
-                                if (dyn is Item item)
-                                {
-                                    if (item.IsCorpse)
-                                        MergeHeldItem(item);
-                                    else
-                                    {
-                                        SelectedObject = item;
-
-                                        if (item.Graphic == HeldItem.Graphic && HeldItem is IDynamicItem dyn1 && TileData.IsStackable(dyn1.ItemData.Flags))
-                                            MergeHeldItem(item);
-                                        else
-                                            DropHeldItemToWorld(obj.Position.X, obj.Position.Y, (sbyte) (obj.Position.Z + dyn.ItemData.Height));
-                                    }
-                                }
-                                else
-                                    DropHeldItemToWorld(obj.Position.X, obj.Position.Y, (sbyte) (obj.Position.Z + dyn.ItemData.Height));
-
-                                break;
-                            case Land _:
-                                DropHeldItemToWorld(obj.Position);
-
-                                break;
-                            default:
-                                Log.Message(LogTypes.Warning, "Unhandled mouse inputs for GameObject type " + obj.GetType());
-
-                                return;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                if (IsMouseOverWorld)
-                {
-                    GameObject obj = _mousePicker.MouseOverObject;
+                    if (obj is AnimatedItemEffect eff && eff.Source is Item it)
+                        obj = it;
 
                     switch (obj)
                     {
-                        case Static st:
-
-                        {
-                            if (string.IsNullOrEmpty(st.Name))
-                                TileData.StaticData[st.Graphic].Name = Cliloc.GetString(1020000 + st.Graphic);
-                            obj.AddGameText(MessageType.Label, st.Name, 3, 0, false);
-
-                            _staticManager.Add(st);
-
+                        case Mobile mobile:
+                            // DropHeldItemToContainer(mobile.Equipment[(int) Layer.Backpack]);
+                            MergeHeldItem(mobile);
                             break;
-                        }
-                        case Entity entity:
 
-                            if (!_inqueue)
+                        case Item item:
+                            if (item.IsCorpse)
+                                MergeHeldItem(item);
+                            else
                             {
-                                _inqueue = true;
-                                _queuedObject = entity;
-                                _dequeueAt = Mouse.MOUSE_DELAY_DOUBLE_CLICK;
+                                SelectedObject = item;
 
-                                _queuedAction = () =>
-                                {
-                                    if (!World.ClientFlags.TooltipsEnabled)
-                                        GameActions.SingleClick(_queuedObject);
-                                    GameActions.OpenPopupMenu(_queuedObject);
-                                };
+                                if (item.Graphic == HeldItem.Graphic && HeldItem.IsStackable)
+                                    MergeHeldItem(item);
+                                else
+                                    DropHeldItemToWorld(obj.Position.X, obj.Position.Y, (sbyte)(obj.Position.Z + item.ItemData.Height));
                             }
-
                             break;
+
+                        case Multi multi:
+                            DropHeldItemToWorld(obj.Position.X, obj.Position.Y, (sbyte)(obj.Position.Z + multi.ItemData.Height));
+                            break;
+
+                        case Static st:
+                            DropHeldItemToWorld(obj.Position.X, obj.Position.Y, (sbyte)(obj.Position.Z + st.ItemData.Height));
+                            break;
+
+                        case Land _:
+                            DropHeldItemToWorld(obj.Position);
+                            break;
+
+                        default:
+                            Log.Message(LogTypes.Warning, "Unhandled mouse inputs for GameObject type " + obj.GetType());
+                            return;
                     }
                 }
+                else
+                    Engine.SceneManager.CurrentScene.Audio.PlaySound(0x0051);
             }
-        }
-
-        private void OnLeftMouseDoubleClick(object sender, MouseDoubleClickEventArgs e)
-        {
-            if (IsMouseOverWorld)
+            else
             {
-                GameObject obj = _mousePicker.MouseOverObject;
-                Point point = _mousePicker.MouseOverObjectPoint;
+                GameObject obj = _mousePicker.MouseOverObject as GameObject;
 
                 switch (obj)
                 {
-                    case Item item:
-                        e.Result = true;
-                        GameActions.DoubleClick(item);
-
+                    case Static st:
+                        string name = st.Name;
+                        if (string.IsNullOrEmpty(name))
+                            name = FileManager.Cliloc.GetString(1020000 + st.Graphic);
+                        obj.AddOverhead(MessageType.Label, name, 3, 0, false);
                         break;
-                    case Mobile mob:
-                        e.Result = true;
 
-                        if (World.Player.InWarMode)
+                    case Multi multi:
+                        name = multi.Name;
+                        if (string.IsNullOrEmpty(name))
+                            name = FileManager.Cliloc.GetString(1020000 + multi.Graphic);
+                        obj.AddOverhead(MessageType.Label, name, 3, 0, false);
+                        break;
+
+                    case AnimatedItemEffect effect when effect.Source is Entity:
+                    case Entity _:
+                        if (!_inqueue)
                         {
-                            //TODO: attack request
-                            
+                            _inqueue = true;
+                            _queuedObject = obj is AnimatedItemEffect ef ? (Entity)ef.Source : (Entity)obj;
+                            _dequeueAt = Mouse.MOUSE_DELAY_DOUBLE_CLICK;
+                            _queuedAction = () =>
+                            {
+                                if (!World.ClientFlags.TooltipsEnabled)
+                                    GameActions.SingleClick(_queuedObject);
+                                GameActions.OpenPopupMenu(_queuedObject);
+                            };
                         }
-                        else
-                            GameActions.DoubleClick(mob);
-
-                        break;
-                    case GameEffect effect when effect.Source is Item item:
-                        e.Result = true;
-                        GameActions.DoubleClick(item);
-
                         break;
                 }
 
-                ClearDequeued();
             }
         }
-
-        private void OnRightMouseButtonDown(object sender, EventArgs e)
+        private void OnLeftMouseDoubleClick(object sender, MouseDoubleClickEventArgs e)
         {
-            if (IsMouseOverWorld && !_rightMousePressed)
-                _rightMousePressed = true;
+            if (!IsMouseOverViewport)
+                return;
+
+            IGameEntity obj = _mousePicker.MouseOverObject;
+
+            switch (obj)
+            {
+                case Item item:
+                    e.Result = true;
+                    GameActions.DoubleClick(item);
+                    break;
+
+                case Mobile mob:
+                    e.Result = true;
+                    if (World.Player.InWarMode && World.Player != mob)
+                        GameActions.Attack(mob);
+                    else
+                        GameActions.DoubleClick(mob);
+                    break;
+
+                case GameEffect effect when effect.Source is Item item:
+                    e.Result = true;
+                    GameActions.DoubleClick(item);
+                    break;
+                case MessageInfo msg when msg.Parent.Parent is Entity entity:
+                    e.Result = true;
+                    GameActions.DoubleClick(entity);
+                    break;
+            }
+
+            ClearDequeued();
         }
 
-        private void OnRightMouseButtonUp(object sender, EventArgs e)
+
+        // RIGHT
+        private void OnRightMouseDown(object sender, EventArgs e)
+        {
+            if (!IsMouseOverViewport)
+                return;
+
+            if (!_rightMousePressed)
+            {
+                _rightMousePressed = true;
+                _continueRunning = false;
+            }
+        }
+        private void OnRightMouseUp(object sender, EventArgs e)
         {
             if (_rightMousePressed)
                 _rightMousePressed = false;
         }
-
         private void OnRightMouseDoubleClick(object sender, MouseDoubleClickEventArgs e)
         {
-            if (IsMouseOverWorld)
+            if (!IsMouseOverViewport)
+                return;
+
+            if (Engine.Profile.Current.EnablePathfind && !Pathfinder.AutoWalking)
             {
-                if (Engine.Profile.Current.EnablePathfind && !Pathfinder.AutoWalking)
+                if (_mousePicker.MouseOverObject is Land || (GameObjectHelper.TryGetStaticData(_mousePicker.MouseOverObject as GameObject, out var itemdata) && itemdata.IsSurface))
                 {
-                    if (_mousePicker.MouseOverObject is Land || _mousePicker.MouseOverObject is IDynamicItem dyn && TileData.IsSurface( dyn.ItemData.Flags))
+                    if (_mousePicker.MouseOverObject is GameObject obj && Pathfinder.WalkTo(obj.X, obj.Y, obj.Z, 0))
                     {
-                        GameObject obj = _mousePicker.MouseOverObject;
-
-                        if (Pathfinder.WalkTo(obj.X, obj.Y, obj.Z, 0))
-                        {
-                            World.Player.AddGameText(MessageType.Label, "Pathfinding!", 3, 0, false);
-
-                            e.Result = true;
-                        }
+                        World.Player.AddOverhead(MessageType.Label, "Pathfinding!", 3, 0, false);
+                        e.Result = true;
                     }
                 }
             }
         }
 
-        private void OnMouseDragBegin(object sender, EventArgs e)
+
+        // MOUSE MOVING
+        private void OnMouseMoving(object sender, EventArgs e)
         {
-            if (Mouse.LButtonPressed)
+            if (!IsMouseOverViewport)
+                return;
+
+            if (Mouse.LButtonPressed && !IsHoldingItem)
             {
-                if (!IsHoldingItem && IsMouseOverWorld)
+                Point offset = Mouse.LDroppedOffset;
+
+                if (Math.Abs(offset.X) > Constants.MIN_PICKUP_DRAG_DISTANCE_PIXELS || Math.Abs(offset.Y) > Constants.MIN_PICKUP_DRAG_DISTANCE_PIXELS)
                 {
-                    GameObject obj = _mousePicker.MouseOverObject;
+                    GameObject obj = _dragginObject;
+
+                    if (obj is AnimatedItemEffect eff && eff.Source is Item it)
+                    {
+                        if (PickupItemBegin(it, _dragOffset.X, _dragOffset.Y))
+                        {
+                            obj.Destroy();
+                            return;
+                        }
+                    }
 
                     switch (obj)
                     {
                         case Mobile mobile:
                             GameActions.RequestMobileStatus(mobile);
-                            //Health Bar
 
-                            // Check if dragged mobile is in party for doing the party part ;)
-                            PartyMember member = new PartyMember(mobile);
+                            Engine.UI.GetByLocalSerial<HealthBarGump>(mobile)?.Dispose();
 
-                            if (PartySystem.Members.Exists(x => x.Serial == member.Serial))
-                            {
-                                //Checks if party member gump is already on sceen
-                                if (PartyMemberGumpStack.Contains(mobile))
-                                    Engine.UI.Remove<PartyMemberGump>(mobile);
-                                else if (mobile == World.Player)
-                                {
-                                    StatusGump status = Engine.UI.GetByLocalSerial<StatusGump>();
-                                    status?.Dispose();
-                                }
+                            if (mobile == World.Player)
+                                StatusGumpBase.GetStatusGump()?.Dispose();
 
-                                PartyMemberGump partymemberGump = new PartyMemberGump(member, _mousePicker.Position.X, _mousePicker.Position.Y);
-                                Engine.UI.Add(partymemberGump);
-                                PartyMemberGumpStack.Add(mobile);
-                                Rectangle rect = IO.Resources.Gumps.GetGumpTexture(0x0804).Bounds;
-                                Engine.UI.AttemptDragControl(partymemberGump, new Point(_mousePicker.Position.X + (rect.Width >> 1), _mousePicker.Position.Y + (rect.Height >> 1)), true);
-                            }
-                            else
-                            {
-                                if (MobileGumpStack.Contains(mobile))
-                                    Engine.UI.Remove<MobileHealthGump>(mobile);
-                                else if (mobile == World.Player)
-                                {
-                                    StatusGump status = Engine.UI.GetByLocalSerial<StatusGump>();
-                                    status?.Dispose();
-                                }
-
-                                MobileGumpStack.Add(mobile);
-                                Rectangle rect = IO.Resources.Gumps.GetGumpTexture(0x0804).Bounds;
-                                MobileHealthGump currentMobileHealthGump;
-                                Engine.UI.Add(currentMobileHealthGump = new MobileHealthGump(mobile, Mouse.Position.X - (rect.Width >> 1), Mouse.Position.Y - (rect.Height >> 1)));
-                                Engine.UI.AttemptDragControl(currentMobileHealthGump, Mouse.Position, true);
-                            }
+                            Rectangle rect = FileManager.Gumps.GetTexture(0x0804).Bounds;
+                            HealthBarGump currentHealthBarGump;
+                            Engine.UI.Add(currentHealthBarGump = new HealthBarGump(mobile) { X = Mouse.Position.X - (rect.Width >> 1), Y = Mouse.Position.Y - (rect.Height >> 1) });
+                            Engine.UI.AttemptDragControl(currentHealthBarGump, Mouse.Position, true);
 
                             break;
-                        case Item item:
-                            PickupItemBegin(item, _dragOffset.X, _dragOffset.Y);
 
+                        case Item item when !item.IsCorpse:
+                            PickupItemBegin(item, _dragOffset.X, _dragOffset.Y);
                             break;
                     }
+
+                    _dragginObject = null;
                 }
             }
         }
 
-        private void OnMouseDragging(object sender, EventArgs e)
+
+        // MOUSE WHEEL
+        private void OnMouseWheel(object sender, bool e)
         {
+            if (!IsMouseOverViewport)
+                return;
+
+            if (!Engine.Profile.Current.EnableScaleZoom || !Input.Keyboard.Ctrl)
+                return;
+
+            if (!e)
+                ScalePos++;
+            else
+                ScalePos--;
+
+            if (Engine.Profile.Current.SaveScaleAfterClose)
+                Engine.Profile.Current.ScaleZoom = Scale;
         }
 
-        private void OnMouseMoving(object sender, EventArgs e)
+
+        // MOUSE DRAG
+        private void OnMouseDragBegin(object sender, EventArgs e)
         {
+            //if (!IsMouseOverViewport)
+            //    return;
+
+            //if (!IsHoldingItem)
+            //{
+            //    GameObject obj = _dragginObject;
+
+            //    if (obj is AnimatedItemEffect eff && eff.Source is Item it)
+            //        obj = it;
+
+            //    switch (obj)
+            //    {
+            //        case Mobile mobile:
+            //            GameActions.RequestMobileStatus(mobile);
+
+            //            Engine.UI.GetByLocalSerial<HealthBarGump>(mobile)?.Dispose();
+
+            //            if (mobile == World.Player)
+            //                StatusGumpBase.GetStatusGump()?.Dispose();
+
+            //            Rectangle rect = FileManager.Gumps.GetTexture(0x0804).Bounds;
+            //            HealthBarGump currentHealthBarGump;
+            //            Engine.UI.Add(currentHealthBarGump = new HealthBarGump(mobile) { X = Mouse.Position.X - (rect.Width >> 1), Y = Mouse.Position.Y - (rect.Height >> 1) });
+            //            Engine.UI.AttemptDragControl(currentHealthBarGump, Mouse.Position, true);
+            //            break;
+
+            //        case Item item:
+            //            PickupItemBegin(item, _dragOffset.X, _dragOffset.Y);
+            //            break;
+            //    }
+
+            //    _dragginObject = null;
+            //}
         }
+
+
 
         private void OnKeyDown(object sender, SDL.SDL_KeyboardEvent e)
         {
-            if (TargetSystem.IsTargeting && e.keysym.sym == SDL.SDL_Keycode.SDLK_ESCAPE && e.keysym.mod == SDL.SDL_Keymod.KMOD_NONE)
-                TargetSystem.SetTargeting(TargetType.Nothing, 0, 0);
+            _isShiftDown = Input.Keyboard.IsModPressed(e.keysym.mod, SDL.SDL_Keymod.KMOD_SHIFT);
+            _isCtrlDown = Input.Keyboard.IsModPressed(e.keysym.mod, SDL.SDL_Keymod.KMOD_CTRL);
 
-            //if (e.keysym.sym == SDL.SDL_Keycode.SDLK_0)
-            //{
-            //    Task.Run(async () =>
-            //    {
-            //        while (true)
-            //        {
-            //            await Task.Delay(1);
-            //            GameActions.CastSpell(205);
-            //        }
+            if (TargetManager.IsTargeting && e.keysym.sym == SDL.SDL_Keycode.SDLK_ESCAPE && Input.Keyboard.IsModPressed(e.keysym.mod, SDL.SDL_Keymod.KMOD_NONE))
+                TargetManager.CancelTarget();
 
-            //    });
-            //}
-            // TEST PURPOSE
-            /*if (e.keysym.sym == SDL.SDL_Keycode.SDLK_0)
+            if (Engine.Profile.Current.ActivateChatAfterEnter)
             {
+                // Activate chat after `Enter` pressing, 
+                // If chat active - ignores hotkeys from cuo
+                if (Engine.Profile.Current.ActivateChatIgnoreHotkeys && Engine.Profile.Current.ActivateChatStatus)
+                    return;
+            }
 
-                bool first = false;
+            if (e.keysym.sym == SDL.SDL_Keycode.SDLK_TAB)
+                if (!World.Player.InWarMode && Engine.Profile.Current.HoldDownKeyTab)
+                    GameActions.SetWarMode(true);
 
-                string tobrit = "[go britain";
-                string toluna = "[go luna";
+            if (_keycodeDirection.TryGetValue(e.keysym.sym, out Direction dWalk))
+            {
+                if (!Engine.Profile.Current.ActivateChatStatus)
+                    World.Player.Walk(dWalk, false);
+                else
+                {
+                    WorldViewportGump vp = Engine.UI.GetByLocalSerial<WorldViewportGump>();
+                    SystemChatControl chat = vp?.FindControls<SystemChatControl>().SingleOrDefault();
+                    if (chat != null && chat.textBox.Text.Length == 0)
+                        World.Player.Walk(dWalk, false);
+                }
+            }
 
-                Task.Run(async () =>
-               {
+            if ((e.keysym.mod & SDL2.SDL.SDL_Keymod.KMOD_NUM) != SDL2.SDL.SDL_Keymod.KMOD_NUM)
+                if (_keycodeDirectionNum.TryGetValue(e.keysym.sym, out Direction dWalkN))
+                    World.Player.Walk(dWalkN, false);
 
-                   while (true)
-                   {
-                       await Task.Delay(500);
+            bool isshift = (e.keysym.mod & SDL.SDL_Keymod.KMOD_SHIFT) != SDL.SDL_Keymod.KMOD_NONE;
+            bool isalt = (e.keysym.mod & SDL.SDL_Keymod.KMOD_ALT) != SDL.SDL_Keymod.KMOD_NONE;
+            bool isctrl = (e.keysym.mod & SDL.SDL_Keymod.KMOD_CTRL) != SDL.SDL_Keymod.KMOD_NONE;
 
-                       NetClient.Socket.Send(new PUnicodeSpeechRequest(first ? tobrit : toluna, MessageType.Regular, MessageFont.Normal, 33, "ENU"));
+            _useObjectHandles = isshift && isctrl;
 
-                       first = !first;
+            Macro macro = _macroManager.FindMacro(e.keysym.sym, isalt, isctrl, isshift);
 
-
-                   }
-               });
-            }*/
+            if (macro != null)
+            {
+                _macroManager.SetMacroToExecute(macro.FirstNode);
+                _macroManager.WaitForTargetTimer = 0;
+                _macroManager.Update();
+            }
         }
 
         private void OnKeyUp(object sender, SDL.SDL_KeyboardEvent e)
         {
-        }
+            bool isshift = (e.keysym.mod & SDL.SDL_Keymod.KMOD_SHIFT) != SDL.SDL_Keymod.KMOD_NONE;
+            bool isalt = (e.keysym.mod & SDL.SDL_Keymod.KMOD_ALT) != SDL.SDL_Keymod.KMOD_NONE;
+            bool isctrl = (e.keysym.mod & SDL.SDL_Keymod.KMOD_CTRL) != SDL.SDL_Keymod.KMOD_NONE;
+
+            if (Engine.Profile.Current.EnableScaleZoom && Engine.Profile.Current.RestoreScaleAfterUnpressCtrl && _isCtrlDown && !isctrl)
+                Engine.SceneManager.GetScene<GameScene>().Scale = Engine.Profile.Current.RestoreScaleValue;
+
+            _isShiftDown = isshift;
+            _isCtrlDown = isctrl;
+
+            _useObjectHandles = isctrl && isshift;
+
+			if (e.keysym.sym == SDL.SDL_Keycode.SDLK_TAB)
+			{
+                if (Engine.Profile.Current.HoldDownKeyTab)
+                {
+                    if (World.Player.InWarMode)
+                        GameActions.SetWarMode(false);
+                }
+                else
+                    GameActions.ToggleWarMode();
+			}
+		}
+
     }
 }

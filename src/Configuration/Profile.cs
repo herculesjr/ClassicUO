@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -26,7 +26,8 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ClassicUO.Game;
-using ClassicUO.Game.Gumps.UIGumps;
+using ClassicUO.Game.Managers;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Logging;
 
@@ -34,9 +35,11 @@ using Microsoft.Xna.Framework;
 
 using Newtonsoft.Json;
 
+using SDL2;
+
 namespace ClassicUO.Configuration
 {
-    public sealed class Profile
+    internal sealed class Profile
     {
         [JsonConstructor]
         public Profile(string username, string servername, string charactername)
@@ -53,8 +56,6 @@ namespace ClassicUO.Configuration
         [JsonProperty]
         public string CharacterName { get; }
 
-
-
         // sounds
         [JsonProperty] public bool EnableSound { get; set; } = true;
         [JsonProperty] public int SoundVolume { get; set; } = 100;
@@ -62,7 +63,7 @@ namespace ClassicUO.Configuration
         [JsonProperty] public int MusicVolume { get; set; } = 100;
         [JsonProperty] public bool EnableFootstepsSound { get; set; } = true;
         [JsonProperty] public bool EnableCombatMusic { get; set; } = true;
-        [JsonProperty] public bool ReproduceSoundsInBackground { get; set; } = true;
+        [JsonProperty] public bool ReproduceSoundsInBackground { get; set; } = false;
 
         // fonts and speech
         [JsonProperty] public byte ChatFont { get; set; } = 1;
@@ -71,6 +72,7 @@ namespace ClassicUO.Configuration
 
         // hues
         [JsonProperty] public ushort SpeechHue { get; set; } = 0x02B2;
+        [JsonProperty] public ushort WhisperHue { get; set; } = 0x0033;
         [JsonProperty] public ushort EmoteHue { get; set; } = 0x0021;
         [JsonProperty] public ushort PartyMessageHue { get; set; } = 0x0044;
         [JsonProperty] public ushort GuildMessageHue { get; set; } = 0x0044;
@@ -89,10 +91,29 @@ namespace ClassicUO.Configuration
         [JsonProperty] public bool EnableSkillReport { get; set; } = true;
         [JsonProperty] public bool UseOldStatusGump { get; set; } = false;
         [JsonProperty] public int BackpackStyle { get; set; } = 0;
-        [JsonProperty] public bool HighlightGameObjects { get; set; } = true;
+        [JsonProperty] public bool HighlightGameObjects { get; set; } = false;
         [JsonProperty] public bool HighlightMobilesByFlags { get; set; } = true;
         [JsonProperty] public bool ShowMobilesHP { get; set; } = false;
-        [JsonProperty] public int MobileHPType { get; set; } = 0;
+        [JsonProperty] public int MobileHPType { get; set; } = 0; // 0 = %, 1 = line, 2 = both
+        [JsonProperty] public bool DrawRoofs { get; set; } = true;
+        [JsonProperty] public bool TreeToStumps { get; set; } = false;
+        [JsonProperty] public bool EnableCaveBorder { get; set; } = false;
+        [JsonProperty] public bool HideVegetation { get; set; } = false;
+        [JsonProperty] public int FieldsType { get; set; } = 0; // 0 = normal, 1 = static, 2 = tile
+        [JsonProperty] public bool NoColorObjectsOutOfRange { get; set; } = false;
+        [JsonProperty] public bool UseCircleOfTransparency { get; set; } = false;
+        [JsonProperty] public int CircleOfTransparencyRadius { get; set; } = 5;
+
+        [JsonProperty] public float ScaleZoom { get; set; } = 1.0f;
+        [JsonProperty] public float RestoreScaleValue { get; set; } = 1.0f;
+        [JsonProperty] public bool EnableScaleZoom { get; set; } = false;
+        [JsonProperty] public bool SaveScaleAfterClose { get; set; } = false;
+        [JsonProperty] public bool RestoreScaleAfterUnpressCtrl { get; set; } = false;
+
+        [JsonProperty] public bool BandageSelfOld { get; set; } = true;
+
+        [JsonProperty] public bool EnableDeathScreen { get; set; } = true;
+        [JsonProperty] public bool EnableBlackWhiteEffect { get; set; } = true;
 
         // tooltip
         [JsonProperty] public bool EnableTooltip { get; set; } = true;
@@ -100,16 +121,112 @@ namespace ClassicUO.Configuration
         [JsonProperty] public ushort TooltipTextHue { get; set; } = 0xFFFF;
 
         // movements
-        [JsonProperty] public bool EnablePathfind { get; set; } = true;
-        [JsonProperty] public bool AlwaysRun { get; set; } = false;
+        [JsonProperty] public bool EnablePathfind { get; set; } = false;
+        [JsonProperty] public bool AlwaysRun { get; set; }
         [JsonProperty] public bool SmoothMovements { get; set; } = true;
+        [JsonProperty] public bool HoldDownKeyTab { get; set; } = true;
+        [JsonProperty] public bool HoldDownKeyAltToCloseAnchored { get; set; } = true;
 
         // general
         [JsonProperty] public Point ContainerDefaultPosition { get; set; } = new Point(24, 24);
         [JsonProperty] public Point GameWindowPosition { get; set; } = new Point(10, 10);
+        [JsonProperty] public bool GameWindowLock { get; set; } = false;
+        [JsonProperty] public bool GameWindowFullSize { get; set; } = false;
         [JsonProperty] public Point GameWindowSize { get; set; } = new Point(600, 480);
+        [JsonProperty] public Point TopbarGumpPosition { get; set; } = new Point(0, 0);
+        [JsonProperty] public bool TopbarGumpIsMinimized { get; set; } = false;
+        [JsonProperty] public bool TopbarGumpIsDisabled { get; set; } = false;
+        [JsonProperty] public Point DebugGumpPosition { get; set; } = new Point(0, 0);
+        [JsonProperty] public bool DebugGumpIsMinimized { get; set; } = false;
+        [JsonProperty] public bool DebugGumpIsDisabled { get; set; } = false;
+        [JsonProperty] public bool UseCustomLightLevel { get; set; } = false;
+        [JsonProperty] public byte LightLevel { get; set; } = 0;
+        [JsonProperty] public int CloseHealthBarType { get; set; } = 0; // 0 = none, 1 == not exists, 2 == is dead
+
+        [JsonProperty] public bool ActivateChatAfterEnter { get; set; } = false;
+        [JsonProperty] public bool ActivateChatStatus { get; set; } = true;
+        [JsonProperty] public bool ActivateChatIgnoreHotkeys { get; set; } = true;
+        [JsonProperty] public bool ActivateChatIgnoreHotkeysPlugins { get; set; } = true;
+        [JsonProperty] public bool ActivateChatAdditionalButtons { get; set; } = true;
+        [JsonProperty] public bool ActivateChatShiftEnterSupport { get; set; } = true;
+
+        [JsonProperty] public int MaxFPS { get; set; } = 60;
+
+        [JsonProperty]
+        public Macro[] Macros { get; set; } =
+        {
+            new Macro("Paperdoll", (SDL.SDL_Keycode)112, true, false, false)
+            {
+                FirstNode = new MacroObject((MacroType)8, (MacroSubType)10)
+                {
+                    HasSubMenu = 1
+                },         
+            },
+
+            new Macro("Options", (SDL.SDL_Keycode)111, true, false, false)
+            {
+                FirstNode = new MacroObject((MacroType)8, (MacroSubType)9)
+                {
+                    HasSubMenu = 1
+                },
+            },
+
+            new Macro("Journal", (SDL.SDL_Keycode)106, true, false, false)
+            {
+                FirstNode = new MacroObject((MacroType)8, (MacroSubType)12)
+                {
+                    HasSubMenu = 1
+                },
+            },
+
+            new Macro("Backpack", (SDL.SDL_Keycode)105, true, false, false)
+            {
+                FirstNode = new MacroObject((MacroType)8, (MacroSubType)16)
+                {
+                    HasSubMenu = 1
+                },
+            },
+
+            new Macro("Radar", (SDL.SDL_Keycode)114, true, false, false)
+            {
+                FirstNode = new MacroObject((MacroType)8, (MacroSubType)17)
+                {
+                    HasSubMenu = 1
+                },
+            },
+
+            new Macro("Bow", (SDL.SDL_Keycode)98, false, true, false)
+            {
+                FirstNode = new MacroObject((MacroType)18, (MacroSubType)0)
+                {
+                    HasSubMenu = 0
+                },
+            },
+
+            new Macro("Salute", (SDL.SDL_Keycode)115, false, true, false)
+            {
+                FirstNode = new MacroObject((MacroType)19, (MacroSubType)0)
+                {
+                    HasSubMenu = 0
+                },
+            },
+        };
+
+        [JsonProperty] public bool CounterBarEnabled { get; set; } = false;
+        [JsonProperty] public bool CounterBarHighlightOnUse { get; set; } = false;
+        [JsonProperty] public int CounterBarCellSize { get; set; } = 40;
+        [JsonProperty] public int CounterBarRows { get; set; } = 1;
+        [JsonProperty] public int CounterBarColumns { get; set; } = 1;
 
 
+        [JsonProperty] public bool ShadowsEnabled { get; set; } = true;
+        [JsonProperty] public int AuraUnderFeetType { get; set; } = 0; // 0 = NO, 1 = in warmode, 2 = ctrl+shift, 3 = always
+
+
+
+
+        internal static string ProfilePath { get; } = Path.Combine(Engine.ExePath, "Data", "Profiles");
+        internal static string DataPath { get; } = Path.Combine(Engine.ExePath, "Data");
         public void Save(List<Gump> gumps = null)
         {
             if (string.IsNullOrEmpty(ServerName))
@@ -119,12 +236,16 @@ namespace ClassicUO.Configuration
             if (string.IsNullOrEmpty(CharacterName))
                 throw new InvalidDataException();
 
-            string path = FileSystemHelper.CreateFolderIfNotExists(Engine.ExePath, "Data", "Profiles", Username, ServerName, CharacterName);
+            string path = FileSystemHelper.CreateFolderIfNotExists(ProfilePath, Username, ServerName, CharacterName);
 
             Log.Message(LogTypes.Trace, $"Saving path:\t\t{path}");
 
             // save settings.json
-            ConfigurationResolver.Save(this, Path.Combine(path, "settings.json"));
+            ConfigurationResolver.Save(this, Path.Combine(path, Engine.SettingsFile), new JsonSerializerSettings()
+            {
+                TypeNameHandling = TypeNameHandling.All,
+                MetadataPropertyHandling = MetadataPropertyHandling.ReadAhead
+            });
 
             // save gumps.bin
             SaveGumps(path, gumps);
@@ -154,7 +275,7 @@ namespace ClassicUO.Configuration
 
 
                 if (gumps != null)
-                { 
+                {
                     writer.Write(gumps.Count);
 
                     foreach (Gump gump in gumps)
@@ -167,11 +288,16 @@ namespace ClassicUO.Configuration
                     writer.Write(0);
                 }
             }
+
+            using (BinaryWriter writer = new BinaryWriter(File.Create(Path.Combine(path, "anchors.bin"))))
+            {
+                Engine.UI.AnchorManager.Save(writer);
+            }
         }
 
         public List<Gump> ReadGumps()
         {
-            string path = FileSystemHelper.CreateFolderIfNotExists(Engine.ExePath, "Data", "Profiles", Username, ServerName, CharacterName);
+            string path = FileSystemHelper.CreateFolderIfNotExists(ProfilePath, Username, ServerName, CharacterName);
 
             string binpath = Path.Combine(path, "gumps.bin");
             if (!File.Exists(binpath))
@@ -190,31 +316,56 @@ namespace ClassicUO.Configuration
 
                     for (int i = 0; i < count; i++)
                     {
-                        int typeLen = reader.ReadUInt16();
-                        string typeName = reader.ReadUTF8String(typeLen);
-                        int x = reader.ReadInt32();
-                        int y = reader.ReadInt32();
-
-                        Type type = Type.GetType(typeName, true);
-                        Gump gump = (Gump) Activator.CreateInstance(type);
-                        gump.Restore(reader);
-                        gump.X = x;
-                        gump.Y = y;
-
-                        if (gump.LocalSerial != 0)
-                            Engine.UI.SavePosition(gump.LocalSerial, new Point(x, y));
-
-                        if (!gump.IsDisposed)
+                        try
                         {
-                            gumps.Add(gump);
+                            int typeLen = reader.ReadUInt16();
+                            string typeName = reader.ReadUTF8String(typeLen);
+                            int x = reader.ReadInt32();
+                            int y = reader.ReadInt32();
+
+                            Type type = Type.GetType(typeName, true);
+                            Gump gump = (Gump)Activator.CreateInstance(type);
+                            gump.Initialize();
+                            gump.Restore(reader);
+                            gump.X = x;
+                            gump.Y = y;
+
+                            //gump.SetInScreen();
+
+                            if (gump.LocalSerial != 0)
+                                Engine.UI.SavePosition(gump.LocalSerial, new Point(x, y));
+
+                            if (!gump.IsDisposed)
+                            {
+                                gumps.Add(gump);
+                            }
                         }
+                        catch (Exception e)
+                        {
+                            Log.Message(LogTypes.Error, e.StackTrace);
+                        }
+                      
                     }
                 }
             }
 
+            string anchorsPath = Path.Combine(path, "anchors.bin");
+            if (File.Exists(anchorsPath))
+            {
+                try
+                {
+                    using (BinaryReader reader = new BinaryReader(File.OpenRead(anchorsPath)))
+                    {
+                        Engine.UI.AnchorManager.Restore(reader, gumps);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Message(LogTypes.Error, e.StackTrace);
+                }             
+            }
+
             return gumps;
         }
-
-        
     }
 }

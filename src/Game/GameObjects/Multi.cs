@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -18,41 +18,49 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
+
+using System.Runtime.CompilerServices;
+
+using ClassicUO.Game.Data;
+using ClassicUO.IO;
+using ClassicUO.IO.Resources;
+using ClassicUO.Utility;
+
 namespace ClassicUO.Game.GameObjects
 {
-    public sealed class Multi
+    internal sealed partial class Multi : GameObject
     {
-        public Multi(Item parent)
-        {
-            Parent = parent;
-        }
-
-        public Item Parent { get; }
-
-        public short MinX { get; set; }
-
-        public short MaxX { get; set; }
-
-        public short MinY { get; set; }
-
-        public short MaxY { get; set; }
-
-        public MultiComponent[] Components { get; set; }
-    }
-
-    public struct MultiComponent
-    {
-        public MultiComponent(Graphic graphic, ushort x, ushort y, sbyte z, uint flags)
+        public Multi(Graphic graphic)
         {
             Graphic = graphic;
-            Position = new Position(x, y, z);
-            Flags = flags;
+            _isFoliage = ItemData.IsFoliage;
+            AllowedToDraw = !GameObjectHelper.IsNoDrawable(Graphic);
+
+            if (ItemData.Height > 5)
+                _canBeTransparent = 1;
+            else if (ItemData.IsRoof || (ItemData.IsSurface && ItemData.IsBackground) || ItemData.IsWall)
+                _canBeTransparent = 1;
+            else if (ItemData.Height == 5 && ItemData.IsSurface && !ItemData.IsBackground)
+                _canBeTransparent = 1;
+            else
+                _canBeTransparent = 0;
         }
 
-        public Graphic Graphic { get; }
+        public string Name => ItemData.Name;
 
-        public uint Flags { get; }
+        private StaticTiles? _itemData;
 
-        public Position Position { get; set; }
+        public Position MultiOffset { get; set; }
+
+        public StaticTiles ItemData
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                if (!_itemData.HasValue)
+                    _itemData = FileManager.TileData.StaticData[Graphic];
+                return _itemData.Value;
+            }
+        }
     }
 }

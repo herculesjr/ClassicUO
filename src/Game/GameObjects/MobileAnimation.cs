@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -22,157 +22,14 @@ using System;
 using System.Collections.Generic;
 
 using ClassicUO.Game.Data;
+using ClassicUO.IO;
 using ClassicUO.IO.Resources;
 
 namespace ClassicUO.Game.GameObjects
 {
-    public partial class Mobile
+    internal partial class Mobile
     {
-        private static readonly byte[][] _animAssociateTable =
-        {
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_WALK, (byte) HIGHT_ANIMATION_GROUP.HAG_WALK, (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_UNARMED
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_WALK, (byte) HIGHT_ANIMATION_GROUP.HAG_WALK, (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_ARMED
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_RUN, (byte) HIGHT_ANIMATION_GROUP.HAG_FLY, (byte) PEOPLE_ANIMATION_GROUP.PAG_RUN_UNARMED
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_RUN, (byte) HIGHT_ANIMATION_GROUP.HAG_FLY, (byte) PEOPLE_ANIMATION_GROUP.PAG_RUN_ARMED
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_STAND, (byte) HIGHT_ANIMATION_GROUP.HAG_STAND, (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_FIDGET_1, (byte) HIGHT_ANIMATION_GROUP.HAG_FIDGET_1, (byte) PEOPLE_ANIMATION_GROUP.PAG_FIDGET_1
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_FIDGET_2, (byte) HIGHT_ANIMATION_GROUP.HAG_FIDGET_2, (byte) PEOPLE_ANIMATION_GROUP.PAG_FIDGET_2
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_STAND, (byte) HIGHT_ANIMATION_GROUP.HAG_STAND, (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND_ONEHANDED_ATTACK
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_STAND, (byte) HIGHT_ANIMATION_GROUP.HAG_STAND, (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND_TWOHANDED_ATTACK
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_3, (byte) PEOPLE_ANIMATION_GROUP.PAG_ATTACK_ONEHANDED
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_1, (byte) PEOPLE_ANIMATION_GROUP.PAG_ATTACK_UNARMED_1
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_2, (byte) PEOPLE_ANIMATION_GROUP.PAG_ATTACK_UNARMED_2
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_3, (byte) PEOPLE_ANIMATION_GROUP.PAG_ATTACK_TWOHANDED_DOWN
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_1, (byte) PEOPLE_ANIMATION_GROUP.PAG_ATTACK_TWOHANDED_WIDE
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_2, (byte) PEOPLE_ANIMATION_GROUP.PAG_ATTACK_TWOHANDED_JAB
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_WALK, (byte) HIGHT_ANIMATION_GROUP.HAG_WALK, (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_WARMODE
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_2, (byte) PEOPLE_ANIMATION_GROUP.PAG_CAST_DIRECTED
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_3, (byte) PEOPLE_ANIMATION_GROUP.PAG_CAST_AREA
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_1, (byte) PEOPLE_ANIMATION_GROUP.PAG_ATTACK_BOW
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_2, (byte) PEOPLE_ANIMATION_GROUP.PAG_ATTACK_CROSSBOW
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_GET_HIT_1, (byte) PEOPLE_ANIMATION_GROUP.PAG_GET_HIT
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_DIE_1, (byte) HIGHT_ANIMATION_GROUP.HAG_DIE_1, (byte) PEOPLE_ANIMATION_GROUP.PAG_DIE_1
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_DIE_2, (byte) HIGHT_ANIMATION_GROUP.HAG_DIE_2, (byte) PEOPLE_ANIMATION_GROUP.PAG_DIE_2
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_WALK, (byte) HIGHT_ANIMATION_GROUP.HAG_WALK, (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_RIDE_SLOW
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_RUN, (byte) HIGHT_ANIMATION_GROUP.HAG_FLY, (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_RIDE_FAST
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_STAND, (byte) HIGHT_ANIMATION_GROUP.HAG_STAND, (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_STAND
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_1, (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_ATTACK
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_2, (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_ATTACK_BOW
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_1, (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_ATTACK_CROSSBOW
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_2, (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_SLAP_HORSE
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_STAND, (byte) PEOPLE_ANIMATION_GROUP.PAG_TURN
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_WALK, (byte) HIGHT_ANIMATION_GROUP.HAG_WALK, (byte) PEOPLE_ANIMATION_GROUP.PAG_ATTACK_UNARMED_AND_WALK
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_STAND, (byte) PEOPLE_ANIMATION_GROUP.PAG_EMOTE_BOW
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_EAT, (byte) HIGHT_ANIMATION_GROUP.HAG_STAND, (byte) PEOPLE_ANIMATION_GROUP.PAG_EMOTE_SALUTE
-            },
-            new[]
-            {
-                (byte) LOW_ANIMATION_GROUP.LAG_FIDGET_1, (byte) HIGHT_ANIMATION_GROUP.HAG_FIDGET_1, (byte) PEOPLE_ANIMATION_GROUP.PAG_FIDGET_3
-            }
-        };
-
-        public Graphic GetMountAnimation()
+        public override Graphic GetGraphicForAnimation()
         {
             ushort g = Graphic;
 
@@ -193,95 +50,184 @@ namespace ClassicUO.Game.GameObjects
 
         public Direction GetDirectionForAnimation()
         {
-            return Steps.Count > 0 ? (Direction) Steps.Front().Direction : Direction;
+            return Steps.Count != 0 ? (Direction) Steps.Front().Direction : Direction;
         }
 
-        public static void GetGroupForAnimation(ANIMATION_GROUPS group, ref byte animation)
+
+        private static void CalculateHight(Mobile mobile, ANIMATION_FLAGS flags, bool isrun, bool iswalking, ref byte result)
         {
-            if ((sbyte) group != 0 && animation < (byte) PEOPLE_ANIMATION_GROUP.PAG_ANIMATION_COUNT)
-                animation = _animAssociateTable[animation][(sbyte) group - 1];
+            if (mobile.AnimationGroup != 0xFF)
+            {
+                result = mobile.AnimationGroup;
+                return;
+            }
+
+            if ((flags & ANIMATION_FLAGS.AF_CALCULATE_OFFSET_BY_PEOPLE_GROUP) != 0)
+            {
+                result = 0;
+            }
+            else if ((flags & ANIMATION_FLAGS.AF_CALCULATE_OFFSET_BY_LOW_GROUP) != 0)
+            {
+                if (!iswalking)
+                    result = 2;
+                else if (isrun)
+                    result = 1;
+                else
+                    result = 0;
+            }
+            else
+            {
+                if (mobile.IsFlying)
+                    result = 19;
+                else if (!iswalking)
+                {
+                    if ((flags & ANIMATION_FLAGS.AF_IDLE_AT_8_FRAME) != 0)
+                        result = 8;
+                    else
+                        result = 1;
+                }
+                else if (isrun)
+                {
+                    if ((flags & ANIMATION_FLAGS.AF_CAN_FLYING) != 0)
+                        result = 19;
+                    else
+                        result = 0;
+                }
+                else
+                {
+                    result = 0;
+                }
+            }
         }
 
-        public static byte GetGroupForAnimation(Mobile mobile, ushort checkGraphic = 0)
+        public static byte GetGroupForAnimation(Mobile mobile, ushort checkGraphic = 0, bool isParent = false)
         {
             Graphic graphic = checkGraphic;
-            if (graphic == 0) graphic = mobile.GetMountAnimation();
-            ANIMATION_GROUPS groupIndex = Animations.GetGroupIndex(graphic);
-            byte result = mobile.AnimationGroup;
+            if (graphic == 0)
+                graphic = mobile.GetGraphicForAnimation();
 
-            if (result != 0xFF && (mobile.Serial & 0x80000000) == 0 && (!mobile.AnimationFromServer || checkGraphic > 0))
+            ANIMATION_GROUPS_TYPE type = FileManager.Animations.DataIndex[graphic].Type;
+
+            if (FileManager.Animations.DataIndex[graphic].IsUOP && (isParent || !FileManager.Animations.DataIndex[graphic].IsValidMUL))
             {
-                GetGroupForAnimation(groupIndex, ref result);
-
-                if (!Animations.AnimationExists(graphic, result))
-                    CorrectAnimationGroup(graphic, groupIndex, ref result);
+                // do nothing ?
             }
+            else
+            {
+                if (!FileManager.Animations.DataIndex[graphic].HasBodyReplaced)
+                {
+                    ushort newGraphic = FileManager.Animations.DataIndex[graphic].Graphic;
+
+                    if (graphic != newGraphic)
+                    {
+                        graphic = newGraphic;
+                        ANIMATION_GROUPS_TYPE newType = FileManager.Animations.DataIndex[graphic].Type;
+
+                        if (newType != type)
+                        {
+                            type = newType;
+                        }
+                    }
+                }
+            }
+
+           
+
+            ANIMATION_FLAGS flags = (ANIMATION_FLAGS) FileManager.Animations.DataIndex[graphic].Flags;
+
+            //ANIMATION_GROUPS groupIndex = FileManager.Animations.GetGroupIndex(graphic, isequip);
+            byte result = 0; // mobile.AnimationGroup;
+
+
+            //if (result != 0xFF && (mobile.Serial & 0x80000000) == 0 && (!mobile.AnimationFromServer || checkGraphic != 0))
+            //{
+            //    GetGroupForAnimation(groupIndex, ref result);
+
+            //    if (!FileManager.Animations.AnimationExists(graphic, result, isequip))
+            //        CorrectAnimationGroup(graphic, groupIndex, ref result);
+            //}
 
             bool isWalking = mobile.IsWalking;
             bool isRun = mobile.IsRunning;
 
-            if (mobile.Steps.Count > 0)
+            if (mobile.Steps.Count != 0)
             {
                 isWalking = true;
                 isRun = mobile.Steps.Front().Run;
             }
 
-            if (groupIndex == ANIMATION_GROUPS.AG_LOW)
+            switch (type)
             {
-                if (isWalking)
-                {
-                    if (isRun)
-                        result = (byte) LOW_ANIMATION_GROUP.LAG_RUN;
-                    else
-                        result = (byte) LOW_ANIMATION_GROUP.LAG_WALK;
-                }
-                else if (mobile.AnimationGroup == 0xFF)
-                {
-                    result = (byte) LOW_ANIMATION_GROUP.LAG_STAND;
-                    mobile.AnimIndex = 0;
-                }
-            }
-            else if (groupIndex == ANIMATION_GROUPS.AG_HIGHT)
-            {
-                if (isWalking)
-                {
-                    result = (byte) HIGHT_ANIMATION_GROUP.HAG_WALK;
+                case ANIMATION_GROUPS_TYPE.ANIMAL:
 
-                    if (isRun)
+                    if (mobile.AnimationGroup != 0xFF)
                     {
-                        if (Animations.AnimationExists(graphic, (byte) HIGHT_ANIMATION_GROUP.HAG_FLY))
-                            result = (byte) HIGHT_ANIMATION_GROUP.HAG_FLY;
+                        result = mobile.AnimationGroup;
+                        break;
                     }
-                }
-                else if (mobile.AnimationGroup == 0xFF)
-                {
-                    result = (byte) HIGHT_ANIMATION_GROUP.HAG_STAND;
-                    mobile.AnimIndex = 0;
-                }
 
-                if (graphic == 151)
-                    result++;
-            }
-            else if (groupIndex == ANIMATION_GROUPS.AG_PEOPLE)
-            {
-                bool inWar = mobile.InWarMode;
-
-                if (isWalking)
-                {
-                    if (isRun)
+                    if ((flags & ANIMATION_FLAGS.AF_CALCULATE_OFFSET_LOW_GROUP_EXTENDED) != 0)
                     {
-                        if (mobile.Equipment[(int) Layer.Mount] != null)
-                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_RIDE_FAST;
-                        else if (mobile.Equipment[(int) Layer.OneHanded] != null || mobile.Equipment[(int) Layer.TwoHanded] != null)
-                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_RUN_ARMED;
+                        CalculateHight(mobile, flags, isRun, isWalking, ref result);
+                    }
+                    else
+                    {
+                        if (!isWalking)
+                            result = 2;
+                        else if (isRun)
+                            result = 1;
                         else
-                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_RUN_UNARMED;
+                            result = 0;
+                    }
+                    break;
+                case ANIMATION_GROUPS_TYPE.MONSTER:
+                    CalculateHight(mobile, flags, isRun, isWalking, ref result);
+                    break;
+                case ANIMATION_GROUPS_TYPE.SEA_MONSTER:
+                    if (!isWalking)
+                        result = 2;
+                    else if (isRun)
+                        result = 1;
+                    else
+                        result = 0;
+                    break;
+                default:
+                {
+                    bool inWar = mobile.InWarMode;
 
-                        if (!mobile.IsHuman && !Animations.AnimationExists(graphic, result))
+                    if (isWalking)
+                    {
+                        if (isRun)
                         {
-                            if (mobile.Equipment[(int) Layer.Mount] != null)
+                            if (mobile.IsMounted)
+                                result = (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_RIDE_FAST;
+                            else if (mobile.Equipment[(int) Layer.OneHanded] != null || mobile.Equipment[(int) Layer.TwoHanded] != null)
+                                result = (byte) PEOPLE_ANIMATION_GROUP.PAG_RUN_ARMED;
+                            else
+                                result = (byte) PEOPLE_ANIMATION_GROUP.PAG_RUN_UNARMED;
+
+                            if (!mobile.IsHuman && !FileManager.Animations.AnimationExists(graphic, result))
+                            {
+                                if (mobile.IsMounted)
+                                    result = (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_RIDE_SLOW;
+                                else if ((mobile.Equipment[(int) Layer.TwoHanded] != null || mobile.Equipment[(int) Layer.OneHanded] != null) && !mobile.IsDead)
+                                {
+                                    if (inWar)
+                                        result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_WARMODE;
+                                    else
+                                        result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_ARMED;
+                                }
+                                else if (inWar && !mobile.IsDead)
+                                    result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_WARMODE;
+                                else
+                                    result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_UNARMED;
+                            }
+                        }
+                        else
+                        {
+                            if (mobile.IsMounted)
                                 result = (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_RIDE_SLOW;
-                            else if ((mobile.Equipment[(int) Layer.TwoHanded] != null || mobile.Equipment[(int) Layer.OneHanded] != null) && !mobile.IsDead)
+                            else if ((mobile.Equipment[(int) Layer.OneHanded] != null || mobile.Equipment[(int) Layer.TwoHanded] != null) && !mobile.IsDead)
                             {
                                 if (inWar)
                                     result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_WARMODE;
@@ -294,154 +240,121 @@ namespace ClassicUO.Game.GameObjects
                                 result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_UNARMED;
                         }
                     }
-                    else
+                    else if (mobile.AnimationGroup == 0xFF)
                     {
-                        if (mobile.Equipment[(int) Layer.Mount] != null)
-                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_RIDE_SLOW;
-                        else if ((mobile.Equipment[(int) Layer.OneHanded] != null || mobile.Equipment[(int) Layer.TwoHanded] != null) && !mobile.IsDead)
-                        {
-                            if (inWar)
-                                result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_WARMODE;
-                            else
-                                result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_ARMED;
-                        }
+                        if (mobile.IsMounted)
+                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_STAND;
                         else if (inWar && !mobile.IsDead)
-                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_WARMODE;
+                        {
+                            if (mobile.Equipment[(int) Layer.OneHanded] != null)
+                                result = (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND_ONEHANDED_ATTACK;
+                            else if (mobile.Equipment[(int) Layer.TwoHanded] != null)
+                                result = (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND_TWOHANDED_ATTACK;
+                            else
+                                result = (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND_ONEHANDED_ATTACK;
+                        }
                         else
-                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_WALK_UNARMED;
-                    }
-                }
-                else if (mobile.AnimationGroup == 0xFF)
-                {
-                    if (mobile.Equipment[(int) Layer.Mount] != null)
-                        result = (byte) PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_STAND;
-                    else if (inWar && !mobile.IsDead)
-                    {
-                        if (mobile.Equipment[(int) Layer.OneHanded] != null)
-                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND_ONEHANDED_ATTACK;
-                        else if (mobile.Equipment[(int) Layer.TwoHanded] != null)
-                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND_TWOHANDED_ATTACK;
-                        else
-                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND_ONEHANDED_ATTACK;
+                            result = (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND;
+
+                        mobile.AnimIndex = 0;
                     }
                     else
-                        result = (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND;
-
-                    mobile.AnimIndex = 0;
-                }
-
-                if (mobile.Race == RaceType.GARGOYLE)
-                {
-                    if (mobile.IsFlying)
                     {
-                        if (result == 0 || result == 1)
-                            result = 62;
-                        else if (result == 2 || result == 3)
-                            result = 63;
-                        else if (result == 4)
-                            result = 64;
-                        else if (result == 6)
-                            result = 66;
-                        else if (result == 7 || result == 8)
-                            result = 65;
-                        else if (result >= 9 && result <= 11)
-                            result = 71;
-                        else if (result >= 12 && result <= 14)
-                            result = 72;
-                        else if (result == 15)
-                            result = 62;
-                        else if (result == 20)
-                            result = 77;
-                        else if (result == 31)
-                            result = 71;
-                        else if (result == 34)
-                            result = 78;
-                        else if (result >= 200 && result <= 259)
-                            result = 75;
-                        else if (result >= 260 && result <= 270) result = 75;
+                        result = mobile.AnimationGroup;
                     }
+
+               
+
+                    if (mobile.Race == RaceType.GARGOYLE)
+                    {
+                        if (mobile.IsFlying)
+                        {
+                            if (result == 0 || result == 1)
+                                result = 62;
+                            else if (result == 2 || result == 3)
+                                result = 63;
+                            else if (result == 4)
+                                result = 64;
+                            else if (result == 6)
+                                result = 66;
+                            else if (result == 7 || result == 8)
+                                result = 65;
+                            else if (result >= 9 && result <= 11)
+                                result = 71;
+                            else if (result >= 12 && result <= 14)
+                                result = 72;
+                            else if (result == 15)
+                                result = 62;
+                            else if (result == 20)
+                                result = 77;
+                            else if (result == 31)
+                                result = 71;
+                            else if (result == 34)
+                                result = 78;
+                            else if (result >= 200 && result <= 259)
+                                result = 75;
+                            else if (result >= 260 && result <= 270) result = 75;
+
+
+                            return result;
+                        }
+                    }
+
+                    break;
                 }
             }
+
+            //if (!isequip)
+            //    CorretAnimationByAnimSequence(groupIndex, graphic, ref result);
 
             return result;
         }
 
-        private static void CorrectAnimationGroup(ushort graphic, ANIMATION_GROUPS group, ref byte animation)
+        private static void CorretAnimationByAnimSequence(ANIMATION_GROUPS type, ushort graphic, ref byte result)
         {
-            if (group == ANIMATION_GROUPS.AG_LOW)
+            if (FileManager.Animations.IsReplacedByAnimationSequence(graphic, out byte t))
             {
-                switch ((LOW_ANIMATION_GROUP) animation)
+
+                switch (type)
                 {
-                    case LOW_ANIMATION_GROUP.LAG_DIE_2:
-                        animation = (byte) LOW_ANIMATION_GROUP.LAG_DIE_1;
+                    case ANIMATION_GROUPS.AG_LOW:
 
+                       
                         break;
-                    case LOW_ANIMATION_GROUP.LAG_FIDGET_2:
-                        animation = (byte) LOW_ANIMATION_GROUP.LAG_FIDGET_1;
+                    case ANIMATION_GROUPS.AG_HIGHT:
 
+                        if (result == 1)
+                        {
+                            result = 25;
+                            return;
+                        }
+                       
                         break;
-                    case LOW_ANIMATION_GROUP.LAG_ATTACK_3:
-                    case LOW_ANIMATION_GROUP.LAG_ATTACK_2:
-                        animation = (byte) LOW_ANIMATION_GROUP.LAG_ATTACK_1;
-
+                    case ANIMATION_GROUPS.AG_PEOPLE:
+                        if (result == 1)
+                        {
+                            result = result;
+                            return;
+                        }
                         break;
                 }
 
-                if (!Animations.AnimationExists(graphic, animation)) animation = (byte) LOW_ANIMATION_GROUP.LAG_STAND;
-            }
-            else if (group == ANIMATION_GROUPS.AG_HIGHT)
-            {
-                switch ((HIGHT_ANIMATION_GROUP) animation)
-                {
-                    case HIGHT_ANIMATION_GROUP.HAG_DIE_2:
-                        animation = (byte) HIGHT_ANIMATION_GROUP.HAG_DIE_1;
 
-                        break;
-                    case HIGHT_ANIMATION_GROUP.HAG_FIDGET_2:
-                        animation = (byte) HIGHT_ANIMATION_GROUP.HAG_FIDGET_1;
-
-                        break;
-                    case HIGHT_ANIMATION_GROUP.HAG_ATTACK_3:
-                    case HIGHT_ANIMATION_GROUP.HAG_ATTACK_2:
-                        animation = (byte) HIGHT_ANIMATION_GROUP.HAG_ATTACK_1;
-
-                        break;
-                    case HIGHT_ANIMATION_GROUP.HAG_GET_HIT_3:
-                    case HIGHT_ANIMATION_GROUP.HAG_GET_HIT_2:
-                        animation = (byte) HIGHT_ANIMATION_GROUP.HAG_GET_HIT_1;
-
-                        break;
-                    case HIGHT_ANIMATION_GROUP.HAG_MISC_4:
-                    case HIGHT_ANIMATION_GROUP.HAG_MISC_3:
-                    case HIGHT_ANIMATION_GROUP.HAG_MISC_2:
-                        animation = (byte) HIGHT_ANIMATION_GROUP.HAG_MISC_1;
-
-                        break;
-                    case HIGHT_ANIMATION_GROUP.HAG_FLY:
-                        animation = (byte) HIGHT_ANIMATION_GROUP.HAG_WALK;
-
-                        break;
-                }
-
-                if (!Animations.AnimationExists(graphic, animation)) animation = (byte) HIGHT_ANIMATION_GROUP.HAG_STAND;
-            }
-            else if (group == ANIMATION_GROUPS.AG_PEOPLE)
-            {
-                switch ((PEOPLE_ANIMATION_GROUP) animation)
-                {
-                    case PEOPLE_ANIMATION_GROUP.PAG_FIDGET_2:
-                    case PEOPLE_ANIMATION_GROUP.PAG_FIDGET_3:
-                        animation = (byte) PEOPLE_ANIMATION_GROUP.PAG_FIDGET_1;
-
-                        break;
-                }
-
-                if (!Animations.AnimationExists(graphic, animation))
-                    animation = (byte) PEOPLE_ANIMATION_GROUP.PAG_STAND;
+                if (result == 4) // people stand
+                    result = 25;
+                else if (
+                        result == 0 || // people walk un armed / high walk
+                        result == 1 || // walk armed / high stand
+                        result == 15)  // walk warmode
+                        result = 22; // 22
+                else if (
+                        result == 2 || // people run unarmed
+                        result == 3 || // people run armed
+                        result == 19)  // high fly
+                    result = 24;
             }
         }
-
-        public static byte GetReplacedObjectAnimation(Mobile mobile, ushort index)
+        public static byte GetReplacedObjectAnimation(Graphic graphic, ushort index)
         {
             ushort getReplacedGroup(IReadOnlyList<Tuple<ushort, byte>> list, ushort idx, ushort walkIdx)
             {
@@ -458,20 +371,20 @@ namespace ClassicUO.Game.GameObjects
                 return idx;
             }
 
-            ANIMATION_GROUPS group = Animations.GetGroupIndex(mobile.Graphic);
+            ANIMATION_GROUPS group = FileManager.Animations.GetGroupIndex(graphic);
 
             if (group == ANIMATION_GROUPS.AG_LOW)
-                return (byte) (getReplacedGroup(Animations.GroupReplaces[0], index, (ushort) LOW_ANIMATION_GROUP.LAG_WALK) % (ushort) LOW_ANIMATION_GROUP.LAG_ANIMATION_COUNT);
+                return (byte) (getReplacedGroup(FileManager.Animations.GroupReplaces[0], index, (ushort) LOW_ANIMATION_GROUP.LAG_WALK) % (ushort) LOW_ANIMATION_GROUP.LAG_ANIMATION_COUNT);
 
             if (group == ANIMATION_GROUPS.AG_PEOPLE)
-                return (byte) (getReplacedGroup(Animations.GroupReplaces[1], index, (ushort) PEOPLE_ANIMATION_GROUP.PAG_WALK_UNARMED) % (ushort) PEOPLE_ANIMATION_GROUP.PAG_ANIMATION_COUNT);
+                return (byte) (getReplacedGroup(FileManager.Animations.GroupReplaces[1], index, (ushort) PEOPLE_ANIMATION_GROUP.PAG_WALK_UNARMED) % (ushort) PEOPLE_ANIMATION_GROUP.PAG_ANIMATION_COUNT);
 
             return (byte) (index % (ushort) HIGHT_ANIMATION_GROUP.HAG_ANIMATION_COUNT);
         }
 
         public static byte GetObjectNewAnimation(Mobile mobile, ushort type, ushort action, byte mode)
         {
-            if (mobile.Graphic >= Animations.MAX_ANIMATIONS_DATA_INDEX_COUNT) return 0;
+            if (mobile.Graphic >= Constants.MAX_ANIMATIONS_DATA_INDEX_COUNT) return 0;
 
             switch (type)
             {
@@ -513,11 +426,37 @@ namespace ClassicUO.Game.GameObjects
             return 0;
         }
 
+        private static bool TestStepNoChangeDirection( Mobile mob, byte group)
+        {
+            switch ( (PEOPLE_ANIMATION_GROUP) group)
+            {
+                case PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_RIDE_FAST:
+                case PEOPLE_ANIMATION_GROUP.PAG_RUN_UNARMED:
+                case PEOPLE_ANIMATION_GROUP.PAG_RUN_ARMED:
+                case PEOPLE_ANIMATION_GROUP.PAG_ONMOUNT_RIDE_SLOW:
+                case PEOPLE_ANIMATION_GROUP.PAG_WALK_WARMODE:
+                case PEOPLE_ANIMATION_GROUP.PAG_WALK_ARMED:
+                case PEOPLE_ANIMATION_GROUP.PAG_WALK_UNARMED:
+
+                    if (mob.IsMoving)
+                    {
+                        var s = mob.Steps.Front();
+
+                        if (s.X != mob.X || s.Y != mob.Y)
+                            return true;
+                    }
+
+                    break;
+            }
+
+            return false;
+        }
+
         private static byte GetObjectNewAnimationType_0(Mobile mobile, ushort action, byte mode)
         {
             if (action <= 10)
             {
-                ref IndexAnimation ia = ref Animations.DataIndex[mobile.Graphic];
+                ref IndexAnimation ia = ref FileManager.Animations.DataIndex[mobile.Graphic];
                 ANIMATION_GROUPS_TYPE type = ANIMATION_GROUPS_TYPE.MONSTER;
                 if ((ia.Flags & 0x80000000) != 0) type = ia.Type;
 
@@ -605,7 +544,7 @@ namespace ClassicUO.Game.GameObjects
 
         private static byte GetObjectNewAnimationType_1_2(Mobile mobile, ushort action, byte mode)
         {
-            ref IndexAnimation ia = ref Animations.DataIndex[mobile.Graphic];
+            ref IndexAnimation ia = ref FileManager.Animations.DataIndex[mobile.Graphic];
             ANIMATION_GROUPS_TYPE type = ANIMATION_GROUPS_TYPE.MONSTER;
 
             if ((ia.Flags & 0x80000000) != 0)
@@ -625,7 +564,7 @@ namespace ClassicUO.Game.GameObjects
 
         private static byte GetObjectNewAnimationType_3(Mobile mobile, ushort action, byte mode)
         {
-            ref IndexAnimation ia = ref Animations.DataIndex[mobile.Graphic];
+            ref IndexAnimation ia = ref FileManager.Animations.DataIndex[mobile.Graphic];
             ANIMATION_GROUPS_TYPE type = ANIMATION_GROUPS_TYPE.MONSTER;
             if ((ia.Flags & 0x80000000) != 0) type = ia.Type;
 
@@ -652,7 +591,7 @@ namespace ClassicUO.Game.GameObjects
 
         private static byte GetObjectNewAnimationType_4(Mobile mobile, ushort action, byte mode)
         {
-            ref IndexAnimation ia = ref Animations.DataIndex[mobile.Graphic];
+            ref IndexAnimation ia = ref FileManager.Animations.DataIndex[mobile.Graphic];
             ANIMATION_GROUPS_TYPE type = ANIMATION_GROUPS_TYPE.MONSTER;
             if ((ia.Flags & 0x80000000) != 0) type = ia.Type;
 
@@ -673,7 +612,7 @@ namespace ClassicUO.Game.GameObjects
 
         private static byte GetObjectNewAnimationType_5(Mobile mobile, ushort action, byte mode)
         {
-            ref IndexAnimation ia = ref Animations.DataIndex[mobile.Graphic];
+            ref IndexAnimation ia = ref FileManager.Animations.DataIndex[mobile.Graphic];
             ANIMATION_GROUPS_TYPE type = ANIMATION_GROUPS_TYPE.MONSTER;
             if ((ia.Flags & 0x80000000) != 0) type = ia.Type;
 
@@ -707,7 +646,7 @@ namespace ClassicUO.Game.GameObjects
 
         private static byte GetObjectNewAnimationType_6_14(Mobile mobile, ushort action, byte mode)
         {
-            ref IndexAnimation ia = ref Animations.DataIndex[mobile.Graphic];
+            ref IndexAnimation ia = ref FileManager.Animations.DataIndex[mobile.Graphic];
             ANIMATION_GROUPS_TYPE type = ANIMATION_GROUPS_TYPE.MONSTER;
             if ((ia.Flags & 0x80000000) != 0) type = ia.Type;
 
@@ -743,7 +682,7 @@ namespace ClassicUO.Game.GameObjects
 
         private static byte GetObjectNewAnimationType_8(Mobile mobile, ushort action, byte mode)
         {
-            ref IndexAnimation ia = ref Animations.DataIndex[mobile.Graphic];
+            ref IndexAnimation ia = ref FileManager.Animations.DataIndex[mobile.Graphic];
             ANIMATION_GROUPS_TYPE type = ANIMATION_GROUPS_TYPE.MONSTER;
             if ((ia.Flags & 0x80000000) != 0) type = ia.Type;
 
@@ -764,7 +703,7 @@ namespace ClassicUO.Game.GameObjects
 
         private static byte GetObjectNewAnimationType_9_10(Mobile mobile, ushort action, byte mode)
         {
-            ref IndexAnimation ia = ref Animations.DataIndex[mobile.Graphic];
+            ref IndexAnimation ia = ref FileManager.Animations.DataIndex[mobile.Graphic];
             ANIMATION_GROUPS_TYPE type = ANIMATION_GROUPS_TYPE.MONSTER;
             if ((ia.Flags & 0x80000000) != 0) type = ia.Type;
 
@@ -773,7 +712,7 @@ namespace ClassicUO.Game.GameObjects
 
         private static byte GetObjectNewAnimationType_11(Mobile mobile, ushort action, byte mode)
         {
-            ref IndexAnimation ia = ref Animations.DataIndex[mobile.Graphic];
+            ref IndexAnimation ia = ref FileManager.Animations.DataIndex[mobile.Graphic];
             ANIMATION_GROUPS_TYPE type = ANIMATION_GROUPS_TYPE.MONSTER;
             if ((ia.Flags & 0x80000000) != 0) type = ia.Type;
 

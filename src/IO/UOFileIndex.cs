@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -18,9 +18,13 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #endregion
+
+using System.Runtime.InteropServices;
+
 namespace ClassicUO.IO
 {
-    public struct UOFileIndex3D
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    internal readonly struct UOFileIndex3D
     {
         public UOFileIndex3D(long offset, int length, int decompressed, int extra = 0)
         {
@@ -30,27 +34,28 @@ namespace ClassicUO.IO
             Extra = extra;
         }
 
-        public long Offset;
-        public int Length;
-        public int DecompressedLength;
-        public int Extra;
+        public readonly long Offset;
+        public readonly int Length;
+        public readonly int DecompressedLength;
+        public readonly int Extra;
     }
 
-    public struct UOFileIndex5D
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    internal struct UOFileIndex5D
     {
         public UOFileIndex5D(int file, int index, int offset, int length, int extra = 0)
         {
-            File = file;
-            Index = index;
-            Offset = offset;
+            FileID = file;
+            BlockID = index;
+            Position = offset;
             Length = length;
-            Extra = extra;
+            GumpData = extra;
         }
 
-        public int File;
-        public int Index;
-        public int Offset;
+        public int FileID;
+        public int BlockID;
+        public int Position;
         public int Length;
-        public int Extra;
+        public int GumpData;
     }
 }

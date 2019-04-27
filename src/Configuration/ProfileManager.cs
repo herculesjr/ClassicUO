@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -26,32 +26,37 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using ClassicUO.Game.Gumps.UIGumps;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Utility;
 using ClassicUO.Utility.Coroutines;
 
+using Newtonsoft.Json;
+
 namespace ClassicUO.Configuration
 {
-    public class ProfileManager
+    internal class ProfileManager
     {
         public Profile Current { get; private set; }
 
-        public List<Gump> Load(string servername, string username, string charactername)
+        public void Load(string servername, string username, string charactername)
         {
             string path = FileSystemHelper.CreateFolderIfNotExists(Engine.ExePath, "Data", "Profiles", username, servername, charactername);
 
-            if (!File.Exists(Path.Combine(path, "settings.json")))
+            if (!File.Exists(Path.Combine(path, Engine.SettingsFile)))
             {
                 Current = new Profile(username, servername, charactername);
             }
             else
             {
-                Current = ConfigurationResolver.Load<Profile>(Path.Combine(path, "settings.json")) ?? new Profile(username, servername, charactername);
-
-                return Current.ReadGumps();               
+                Current = ConfigurationResolver.Load<Profile>(Path.Combine(path, Engine.SettingsFile), 
+                new JsonSerializerSettings()
+                {
+                    TypeNameHandling = TypeNameHandling.All,
+                    MetadataPropertyHandling = MetadataPropertyHandling.ReadAhead                
+                }) ?? new Profile(username, servername, charactername);
             }
-
-            return null;
         }
+
+        public void UnLoadProfile() => Current = null;
     }
 }

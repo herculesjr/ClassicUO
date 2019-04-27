@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace ClassicUO.Utility.Coroutines
 {
-    public class CoroutineManager
+    internal class CoroutineManager
     {
-        private static QueuedPool<Coroutine> _pool = new QueuedPool<Coroutine>();
-        private List<Coroutine> _coroutines = new List<Coroutine>();
-        private List<Coroutine> _scheduled = new List<Coroutine>();
-        private List<Coroutine> _trashcan = new List<Coroutine>();
+        private static readonly QueuedPool<Coroutine> _pool = new QueuedPool<Coroutine>();
+        private readonly List<Coroutine> _coroutines = new List<Coroutine>();
+        private readonly List<Coroutine> _scheduled = new List<Coroutine>();
+        private readonly List<Coroutine> _trashcan = new List<Coroutine>();
 
         public Coroutine StartNew(IEnumerator<IWaitCondition> enumerator, string name)
         {

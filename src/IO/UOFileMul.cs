@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -22,7 +22,7 @@ using ClassicUO.IO.Resources;
 
 namespace ClassicUO.IO
 {
-    public class UOFileMul : UOFile
+    internal class UOFileMul : UOFile
     {
         private readonly int _count, _patch;
         private readonly UOFileIdxMul _idxFile;
@@ -46,25 +46,26 @@ namespace ClassicUO.IO
         {
             base.Load(loadentries);
 
-            if (loadentries && _idxFile != null)
+            if (loadentries)
             {
-                int count = (int) _idxFile.Length / 12;
+                UOFile file = _idxFile ?? (UOFile) this;
+
+                int count = (int)file.Length / 12;
                 Entries = new UOFileIndex3D[count];
 
                 for (int i = 0; i < count; i++)
-                    Entries[i] = new UOFileIndex3D(_idxFile.ReadInt(), _idxFile.ReadInt(), 0, _idxFile.ReadInt());
+                    Entries[i] = new UOFileIndex3D(file.ReadInt(), file.ReadInt(), 0, file.ReadInt());
+
                 UOFileIndex5D[] patches = Verdata.Patches;
 
                 for (int i = 0; i < patches.Length; i++)
                 {
                     UOFileIndex5D patch = patches[i];
 
-                    if (patch.File == _patch && patch.Index >= 0 && patch.Index < Entries.Length)
+                    if (patch.FileID == _patch && patch.BlockID >= 0 && patch.BlockID < Entries.Length)
                     {
-                        ref UOFileIndex3D entry = ref Entries[patch.Index];
-                        entry.Offset = patch.Offset;
-                        entry.Length = patch.Length | (1 << 31);
-                        entry.Extra = patch.Extra;
+                        ref UOFileIndex3D entry = ref Entries[patch.BlockID];
+                        entry = new UOFileIndex3D(patch.Position, patch.Length | (1 << 31), 0, patch.GumpData);
                     }
                 }
             }

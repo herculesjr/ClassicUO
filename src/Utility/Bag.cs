@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -24,7 +24,7 @@ using System.Collections.Generic;
 
 namespace ClassicUO.Utility
 {
-    public class Bag<T> : IEnumerable<T>
+    internal class Bag<T> : IEnumerable<T>
     {
         private readonly bool _isPrimitive;
         private T[] _items;
@@ -41,7 +41,7 @@ namespace ClassicUO.Utility
 
         public int Count { get; private set; }
 
-        public T this[in int index]
+        public T this[int index]
         {
             get => _items[index];
             set

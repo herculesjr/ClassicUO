@@ -1,5 +1,5 @@
 #region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -27,9 +27,9 @@ using Microsoft.Xna.Framework;
 
 namespace ClassicUO.Input
 {
-    public class MouseOverItem
+    internal class MouseOverItem
     {
-        public MouseOverItem(GameObject obj, Point pos)
+        public MouseOverItem(IGameEntity obj, Point pos)
         {
             Object = obj;
             InTexturePoint = pos;
@@ -37,10 +37,10 @@ namespace ClassicUO.Input
 
         public Point InTexturePoint { get; }
 
-        public GameObject Object { get; }
+        public IGameEntity Object { get; }
     }
 
-    public class MouseOverList
+    internal class MouseOverList
     {
         private readonly List<MouseOverItem> _items;
 
@@ -63,7 +63,7 @@ namespace ClassicUO.Input
         //    return _items[_items.Count - 1];
         //}
 
-        public void Add(GameObject obj, Vector3 position)
+        public void Add(IGameEntity obj, Vector3 position)
         {
             Point p = new Point(MousePosition.X - (int) position.X, MousePosition.Y - (int) position.Y);
             _items.Add(new MouseOverItem(obj, p));
@@ -163,7 +163,6 @@ namespace ClassicUO.Input
         private static bool PointInPolygon(Point p, Point[] poly)
         {
             // Taken from http://social.msdn.microsoft.com/forums/en-US/winforms/thread/95055cdc-60f8-4c22-8270-ab5f9870270a/
-            Point p1, p2;
             bool inside = false;
 
             if (poly.Length < 3) return inside;
@@ -172,6 +171,10 @@ namespace ClassicUO.Input
             for (int i = 0; i < poly.Length; i++)
             {
                 Point newPoint = new Point(poly[i].X, poly[i].Y);
+
+                Point p1;
+
+                Point p2;
 
                 if (newPoint.X > oldPoint.X)
                 {

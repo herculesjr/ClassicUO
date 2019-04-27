@@ -1,5 +1,5 @@
 ﻿#region license
-//  Copyright (C) 2018 ClassicUO Development Community on Github
+//  Copyright (C) 2019 ClassicUO Development Community on Github
 //
 //	This project is an alternative client for the game Ultima Online.
 //	The goal of this is to develop a lightweight client considering 
@@ -33,7 +33,7 @@ namespace ClassicUO.Utility
     /// <typeparam name="T">The type of elements contained in the deque.</typeparam>
     [DebuggerDisplay("Count = {Count}, Capacity = {Capacity}")]
     [DebuggerTypeProxy(typeof(Deque<>.DebugView))]
-    public sealed class Deque<T> : IList<T>, IReadOnlyList<T>, System.Collections.IList
+    internal sealed class Deque<T> : IList<T>, IReadOnlyList<T>, System.Collections.IList
     {
         /// <summary>
         /// The default capacity.
@@ -341,7 +341,7 @@ namespace ClassicUO.Utility
 
         bool System.Collections.IList.Contains(object value)
         {
-            return IsT(value) ? ((ICollection<T>) this).Contains((T) value) : false;
+            return IsT(value) && ((ICollection<T>) this).Contains((T) value);
         }
 
         int System.Collections.IList.IndexOf(object value)
